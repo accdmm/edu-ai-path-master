@@ -63,6 +63,10 @@ public class SecurityConfig {
                 .requestMatchers("/api/user/info", "/api/user/updatePwd").authenticated()
                 .requestMatchers("/api/analysis/**").authenticated()
 
+                // 💳 支付：支付宝服务器回调（无 token）需放行，其余支付接口需登录
+                .requestMatchers("/api/pay/alipay/notify").permitAll()
+                .requestMatchers("/api/pay/**").authenticated()
+
                 // 🔒 其余接口渐进式放行（含学生端与管理端读接口），后续可收紧
                 .anyRequest().permitAll()
             )

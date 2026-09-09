@@ -634,3 +634,24 @@ CREATE TABLE user_paper (
   KEY idx_paper (paper_id),
   UNIQUE KEY uk_user_paper (user_id, paper_id)
 ) ENGINE = InnoDB COMMENT = '用户试卷关联表（AI 生成试卷归属）';
+
+-- ----------------------------------------
+-- 支付宝沙箱支付订单（购买邀请码）
+-- ----------------------------------------
+DROP TABLE IF EXISTS pay_order;
+CREATE TABLE pay_order (
+  id            BIGINT        NOT NULL AUTO_INCREMENT COMMENT '主键',
+  order_no      VARCHAR(64)   NOT NULL COMMENT '商户订单号',
+  user_id       BIGINT        NOT NULL COMMENT '下单用户ID',
+  product_type  VARCHAR(20)   NOT NULL COMMENT '商品类型：normal/vip/enterprise',
+  amount        DECIMAL(10,2) NOT NULL COMMENT '支付金额（元）',
+  status        VARCHAR(20)   NOT NULL DEFAULT 'CREATED' COMMENT '状态：CREATED/PAID/CLOSED',
+  trade_no      VARCHAR(64)   DEFAULT NULL COMMENT '支付宝交易号',
+  pay_time      DATETIME      DEFAULT NULL COMMENT '支付时间',
+  notify_time   DATETIME      DEFAULT NULL COMMENT '异步回调时间',
+  create_time   DATETIME      DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_order_no (order_no),
+  KEY idx_user (user_id),
+  KEY idx_status (status)
+) ENGINE = InnoDB COMMENT = '支付宝沙箱支付订单（购买邀请码）';

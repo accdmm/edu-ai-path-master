@@ -69,3 +69,15 @@ pinecone:
   namespace: edu-namespace
   cloud: AWS
   region: us-east-1
+
+# 支付宝开放平台配置（沙箱环境）
+# app-id 非敏感可直接写死；私钥/支付宝公钥建议用环境变量注入（与 DASHSCOPE_API_KEY 相同方式）：
+#   set ALIPAY_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n....\n-----END PRIVATE KEY-----"
+#   set ALIPAY_PUBLIC_KEY=xxx   （沙箱应用的「支付宝公钥」）
+alipay:
+  app-id: 9021000167699600
+  private-key: ${ALIPAY_PRIVATE_KEY:}
+  alipay-public-key: ${ALIPAY_PUBLIC_KEY:}
+  gateway: https://openapi-sandbox.dl.alipaydev.com/gateway.do
+  notify-url: ""
+  return-url: http://localhost:3001/pay/result
