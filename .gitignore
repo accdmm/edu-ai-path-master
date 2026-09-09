@@ -1,0 +1,32 @@
+# ===== 环境与密钥 =====
+.env
+.env.local
+*.local
+
+# ===== Java / Maven =====
+backend/target/
+backend/uploads/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+
+# ===== Node / 前端 =====
+frontend/node_modules/
+frontend/dist/
+npm-debug.log*
+yarn-error.log*
+
+# ===== IDE / OS =====
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
+
+# ===== 本地数据 =====
+scripts/mongodb-data/
+
+# ===== 临时 / 反编译产物 =====
+dev/
+.gstack/
+*.log
