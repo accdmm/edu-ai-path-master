@@ -38,6 +38,12 @@ const routes = [
     meta: { title: '首页' }
   },
   {
+    path: '/analysis',
+    name: 'Analysis',
+    component: () => import('../views/Analysis.vue'),
+    meta: { title: 'AI 学习分析', requiresAuth: true }
+  },
+  {
     path: '/admin',
     name: 'AdminLayout',
     component: () => import('../views/AdminLayout.vue'),

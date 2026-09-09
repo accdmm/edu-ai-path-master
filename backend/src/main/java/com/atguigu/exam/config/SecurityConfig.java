@@ -58,9 +58,10 @@ public class SecurityConfig {
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/doc.html",
                         "/webjars/**", "/swagger-resources/**", "/v2/api-docs/**").permitAll()
 
-                // 🔒 需认证：AI 客服、用户信息、修改密码
+                // 🔒 需认证：AI 客服、用户信息、修改密码、AI学习分析
                 .requestMatchers("/api/chat/**").authenticated()
                 .requestMatchers("/api/user/info", "/api/user/updatePwd").authenticated()
+                .requestMatchers("/api/analysis/**").authenticated()
 
                 // 🔒 其余接口渐进式放行（含学生端与管理端读接口），后续可收紧
                 .anyRequest().permitAll()
