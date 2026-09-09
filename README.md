@@ -70,11 +70,11 @@ npm run dev
 
 ### 5. AI 客服配置（可选）
 
-后端 `application.yml` 已内置 DashScope key。如需切换模型或使用自己的 key：
+后端 `application.yml` 通过环境变量读取 API Key（已脱敏，仓库中不含真实密钥）。配置方式：设置环境变量 `DASHSCOPE_API_KEY`、`KIMI_API_KEY`、`PINECONE_API_KEY`，或在 `application.yml` 中填写：
 
 ```yaml
 dashscope:
-  api-key: sk-xxx
+  api-key: ${DASHSCOPE_API_KEY:}
   chat-model: kimi-k3      # 阿里云百炼 DashScope 模型（走 OpenAI 兼容接口）
   embedding-model: text-embedding-v3
 ```
