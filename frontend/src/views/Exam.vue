@@ -30,10 +30,11 @@
           <span>剩余时间: {{ formattedTime }}</span>
         </div>
         <el-progress 
-          :percentage="progressPercentage" 
+          :percentage="answerProgress" 
           :stroke-width="8" 
           class="timer-progress"
         />
+        <span class="answer-count-tip" v-if="totalQuestionCount > 0">已作答 {{ answeredCount }}/{{ totalQuestionCount }} 题</span>
       </div>
     </div>
 
@@ -346,11 +347,26 @@ const formattedTime = computed(() => {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 });
 
-// 进度条百分比
-const progressPercentage = computed(() => {
-  if (totalTime.value === 0) return 0;
-  const passedTime = totalTime.value - remainingTime.value;
-  return Math.floor((passedTime / totalTime.value) * 100);
+// 尝试将进度条与答题进度绑定（原为基于时间）
+const totalQuestionCount = computed(() => {
+  return examRecord.value.paper?.questions?.length || 0;
+});
+
+const answeredCount = computed(() => {
+  const qs = examRecord.value.paper?.questions || [];
+  if (qs.length === 0) return 0;
+  return qs.filter(q => {
+    const v = answers.value[q.id];
+    if (Array.isArray(v)) return v.length > 0;
+    return v != null && String(v).trim() !== '';
+  }).length;
+});
+
+// 答题进度条百分比
+const answerProgress = computed(() => {
+  const total = totalQuestionCount.value;
+  if (total === 0) return 0;
+  return Math.floor((answeredCount.value / total) * 100);
 });
 
 const getOptionLabel = (index) => {
@@ -439,7 +455,9 @@ const submit = async () => {
     
     // 提交答案
     await submitAnswers(examRecordId, formattedAnswers);
-    ElMessage.success('交卷成功！');
+    ElMessage.closeAll();
+    ElMessage.success('交卷成功！AI 判卷进行中，请稍候进入结果页');
+    ElMessage.info('若试卷含简答题，AI 批阅约需 1 分钟，请勿关闭页面');
     
     // 显示AI判卷进度
     isGrading.value = true;
@@ -592,6 +610,14 @@ onUnmounted(() => {
 
 .timer-progress {
   width: 100%; /* 占满宽度 */
+}
+
+.answer-count-tip {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #909399;
+  text-align: right;
 }
 
 /* 题目区域样式 */

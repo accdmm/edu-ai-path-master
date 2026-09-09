@@ -21,6 +21,10 @@ request.interceptors.request.use(
     if (config.url && config.url.includes('/chat')) {
       config.timeout = 60000
     }
+    // 交卷接口包含同步 AI 判卷，放宽超时防止前端先于后端返回而误报
+    if (config.url && config.url.includes('/submit')) {
+      config.timeout = 200000
+    }
     return config
   },
   error => {

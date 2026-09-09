@@ -30,6 +30,9 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 
@@ -39,6 +42,9 @@ import java.util.stream.Collectors;
 @Service
 @Slf4j
 public class ExamServiceImpl extends ServiceImpl<ExamRecordMapper, ExamRecord> implements ExamService {
+
+    /** 简答题 AI 评分线程池（判卷并行化，避免 N 道简答题串行累加耗时） */
+    private static final ExecutorService AI_GRADING_EXECUTOR = Executors.newFixedThreadPool(4);
 
 
     @Autowired
@@ -177,62 +183,63 @@ public class ExamServiceImpl extends ServiceImpl<ExamRecordMapper, ExamRecord> i
         }
 
         //2.进行循环的判卷（1.记录总分数 2.记录正确题目数量 3. 修改每个答题记录的状态（得分，是否正确 0 1 2 ，text-》ai评语））
-        int correctNumber = 0 ; //正确题目数量
-        int totalScore = 0; //总得分
-
-        //报错继续！ 某个记录错了，后续还需要继续判卷
         //将正确题目转成map,方便每次判断获取正确答案
         Map<Long, Question> questionMap = paper.getQuestions().stream().collect(Collectors.toMap(Question::getId, q -> q));
 
-        for (AnswerRecord answerRecord : answerRecords) {
-            try {
-                //1.先获取 答题记录对应的题目对象
-                Question question = questionMap.get(answerRecord.getQuestionId().longValue());
-                String systemAnswer = question.getAnswer().getAnswer();
-                String userAnswer = answerRecord.getUserAnswer();
-                if ("JUDGE".equalsIgnoreCase(question.getType())){
-                    //true false
-                    userAnswer = normalizeJudgeAnswer(userAnswer);
-                }
-                if (!"TEXT".equals(question.getType())) {
-                    //2.判断题目类型(选择和判断直接判卷)
-                    if (systemAnswer.equalsIgnoreCase(userAnswer)){
-                        answerRecord.setIsCorrect(1); //正确
-                        answerRecord.setScore(question.getPaperScore().intValue());
-                    }else{
-                        answerRecord.setIsCorrect(0); //正确
-                        answerRecord.setScore(0);
-                    }
-                }else{
-                    //3.简答题进行ai判断
-                    //简答题
-                    GradingResult result =
-                            kimiAiService.gradingTextQuestion(question,userAnswer,question.getPaperScore().intValue());
+        //简答题 AI 评分并行执行（每道题一次 LLM 调用），客观题本地比对，整体耗时≈单题最长耗时
+        List<CompletableFuture<Void>> futures = answerRecords.stream()
+                .map(answerRecord -> CompletableFuture.runAsync(() -> {
+                    try {
+                        //1.先获取 答题记录对应的题目对象
+                        Question question = questionMap.get(answerRecord.getQuestionId().longValue());
+                        String systemAnswer = question.getAnswer().getAnswer();
+                        String userAnswer = answerRecord.getUserAnswer();
+                        if ("JUDGE".equalsIgnoreCase(question.getType())){
+                            //true false
+                            userAnswer = normalizeJudgeAnswer(userAnswer);
+                        }
+                        if (!"TEXT".equals(question.getType())) {
+                            //2.判断题目类型(选择和判断直接判卷)
+                            if (systemAnswer.equalsIgnoreCase(userAnswer)){
+                                answerRecord.setIsCorrect(1); //正确
+                                answerRecord.setScore(question.getPaperScore().intValue());
+                            }else{
+                                answerRecord.setIsCorrect(0); //正确
+                                answerRecord.setScore(0);
+                            }
+                        }else{
+                            //3.简答题进行ai判断
+                            GradingResult result =
+                                    kimiAiService.gradingTextQuestion(question,userAnswer,question.getPaperScore().intValue());
 
-                    //分
-                    answerRecord.setScore(result.getScore());
-                    //ai评价 正确  feedback  非正确 reason
-                    //是否正确 （满分 1 0分 0 其余就是2）
-                    if (result.getScore() == 0){
+                            //分
+                            answerRecord.setScore(result.getScore());
+                            //ai评价 正确  feedback  非正确 reason
+                            if (result.getScore() == 0){
+                                answerRecord.setIsCorrect(0);
+                                answerRecord.setAiCorrection(result.getReason());
+                            }else if (result.getScore() == question.getPaperScore().intValue()){
+                                answerRecord.setIsCorrect(1);
+                                answerRecord.setAiCorrection(result.getFeedback());
+                            }else{
+                                answerRecord.setIsCorrect(2);
+                                answerRecord.setAiCorrection(result.getReason());
+                            }
+                        }
+                    } catch (Exception e) {
+                        answerRecord.setScore(0);
                         answerRecord.setIsCorrect(0);
-                        answerRecord.setAiCorrection(result.getReason());
-                    }else if (result.getScore() == question.getPaperScore().intValue()){
-                        answerRecord.setIsCorrect(1);
-                        answerRecord.setAiCorrection(result.getFeedback());
-                    }else{
-                        answerRecord.setIsCorrect(2);
-                        answerRecord.setAiCorrection(result.getReason());
+                        answerRecord.setAiCorrection("判题过程出错！");
                     }
-                }
-            } catch (Exception e) {
-                answerRecord.setScore(0);
-                answerRecord.setIsCorrect(0);
-                answerRecord.setAiCorrection("判题过程出错！");
-            }
-            //进行记录修改
-            //进行总分数赋值
+                }, AI_GRADING_EXECUTOR))
+                .collect(Collectors.toList());
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+
+        //进行总分数与总正确题目数量统计
+        int correctNumber = 0;
+        int totalScore = 0;
+        for (AnswerRecord answerRecord : answerRecords) {
             totalScore += answerRecord.getScore();
-            //正确题目数量累加
             if (answerRecord.getIsCorrect() == 1){
                 correctNumber++;
             }
@@ -240,8 +247,20 @@ public class ExamServiceImpl extends ServiceImpl<ExamRecordMapper, ExamRecord> i
         answerRecordService.updateBatchById(answerRecords);
 
         //进行ai生成评价，进行考试记录修改和完善
-        String summary = kimiAiService.
-                buildSummary(totalScore, paper.getTotalScore().intValue(), paper.getQuestionCount(), correctNumber);
+        String summary;
+        try {
+            summary = kimiAiService.
+                    buildSummary(totalScore, paper.getTotalScore().intValue(), paper.getQuestionCount(), correctNumber);
+        } catch (Exception e) {
+            // AI 总评失败时降级为规则型评语，保证交卷不中断
+            log.error("AI生成考试总评失败，使用规则兜底。原因：{}", e.getMessage());
+            double percentage = paper.getTotalScore().intValue() == 0 ? 0
+                    : (double) totalScore / paper.getTotalScore().intValue() * 100;
+            summary = String.format("本次考试得分 %d/%d 分，得分率 %.1f%%，共 %d 道题，答对 %d 道。"
+                    + "建议回顾错题对应的知识点，针对性练习，再接再厉！",
+                    totalScore, paper.getTotalScore().intValue(), percentage,
+                    paper.getQuestionCount(), correctNumber);
+        }
 
         examRecord.setScore(totalScore);
         examRecord.setAnswers(summary);
