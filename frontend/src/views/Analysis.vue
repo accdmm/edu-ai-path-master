@@ -173,18 +173,18 @@ async function loadSuggest() {
 
 function renderCharts() {
   if (report.value.scoreTrend.length) {
-    renderTrendChart()
+    try { renderTrendChart() } catch (e) { console.error('成绩趋势图渲染失败', e) }
   }
   if (report.value.categoryMastery.length) {
-    renderMasteryChart()
+    try { renderMasteryChart() } catch (e) { console.error('知识点掌握度图渲染失败', e) }
   }
   if (report.value.radar.length) {
-    renderRadarChart()
+    try { renderRadarChart() } catch (e) { console.error('能力雷达图渲染失败', e) }
   }
 }
 
 function renderTrendChart() {
-  trendChart = initChart(trendChart.value, trendChartRef.value)
+  trendChart = initChart(trendChart, trendChartRef.value)
   const data = report.value.scoreTrend
   const xLabels = data.map(item => formatDate(item.examTime))
   const rates = data.map(item => item.scoreRate)
@@ -216,7 +216,7 @@ function renderTrendChart() {
 }
 
 function renderMasteryChart() {
-  masteryChart = initChart(masteryChart.value, masteryChartRef.value)
+  masteryChart = initChart(masteryChart, masteryChartRef.value)
   const data = report.value.categoryMastery
   const names = data.map(item => item.categoryName)
   const rates = data.map(item => item.correctRate)
@@ -255,7 +255,7 @@ function renderMasteryChart() {
 }
 
 function renderRadarChart() {
-  radarChart = initChart(radarChart.value, radarChartRef.value)
+  radarChart = initChart(radarChart, radarChartRef.value)
   const data = report.value.radar
   const indicators = data.map(item => ({ name: item.name, max: 100 }))
   const values = data.map(item => item.value)
@@ -286,7 +286,7 @@ function initChart(chart, ref) {
 
 function formatDate(dateStr) {
   if (!dateStr) return ''
-  const d = new Date(dateStr.replace(/-/g, '/'))
+  const d = new Date(dateStr.includes('T') ? dateStr.replace('T', ' ') : dateStr.replace(/-/g, '/'))
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${m}/${day}`
