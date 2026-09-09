@@ -224,6 +224,19 @@ const routes = [
     component: () => import('../views/ActivateCode.vue'),
     meta: { title: '激活邀请码' }
   },
+  // 支付宝沙箱支付（购买邀请码）
+  {
+    path: '/pay',
+    name: 'Pay',
+    component: () => import('../views/Pay.vue'),
+    meta: { title: '购买邀请码', requiresAuth: true }
+  },
+  {
+    path: '/pay/result',
+    name: 'PayResult',
+    component: () => import('../views/PayResult.vue'),
+    meta: { title: '支付结果', requiresAuth: true }
+  },
   {
     path: '/company-detail/:id',
     name: 'CompanyDetail',

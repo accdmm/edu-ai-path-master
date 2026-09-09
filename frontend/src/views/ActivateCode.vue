@@ -270,9 +270,9 @@ export default {
       requestDialogVisible.value = true
     }
     
-    // 购买邀请码
+    // 购买邀请码：跳转沙箱支付页
     const handlePurchaseCode = () => {
-      ElMessage.info('购买功能开发中...')
+      this.$router.push('/pay')
     }
     
     // 提交申请
