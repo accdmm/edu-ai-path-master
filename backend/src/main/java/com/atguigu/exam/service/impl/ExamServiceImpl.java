@@ -21,6 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.bouncycastle.jcajce.provider.asymmetric.rsa.AlgorithmParametersSpi;
 import org.checkerframework.checker.units.qual.A;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.ObjectUtils;
 
@@ -45,6 +46,12 @@ public class ExamServiceImpl extends ServiceImpl<ExamRecordMapper, ExamRecord> i
 
     /** 简答题 AI 评分线程池（判卷并行化，避免 N 道简答题串行累加耗时） */
     private static final ExecutorService AI_GRADING_EXECUTOR = Executors.newFixedThreadPool(4);
+
+    /** Redis Stream：判卷任务队列 */
+    private static final String GRADING_STREAM = "exam:grade";
+
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
 
 
     @Autowired
@@ -141,21 +148,29 @@ public class ExamServiceImpl extends ServiceImpl<ExamRecordMapper, ExamRecord> i
 
     @Override
     public void customSubmitAnswer(Integer examRecordId, List<SubmitAnswerVo> answers) throws InterruptedException {
-        //宏观： 提交答案中间表保存  修改考试记录数据（已完成 ，结束时间）  触发开始判卷（examRecordId）
+        //宏观： 提交答案中间表保存  修改考试记录数据（已完成 ，结束时间）  投递判卷任务（异步）
         //1.中间表保存问题
         if (!ObjectUtils.isEmpty(answers)) {
             List<AnswerRecord> answerRecordList = answers.stream().map(vo -> new AnswerRecord(examRecordId, vo.getQuestionId(), vo.getUserAnswer()))
                     .collect(Collectors.toList());
             answerRecordService.saveBatch(answerRecordList);
         }
-        //2. 暂时修改下考试记录状态（状态 -》 已完成 || 结束时间 - 设置）
+        //2. 暂时修改下考试记录状态（状态 -》 判卷中 || 结束时间 - 设置）
         ExamRecord examRecord = getById(examRecordId);
         examRecord.setEndTime(LocalDateTime.now());
-        examRecord.setStatus("已完成");
+        examRecord.setStatus("判卷中");
         updateById(examRecord);
 
-        //3.调用判卷的接口
-        gradeExam(examRecordId);
+        //3.投递判卷任务到 Redis Stream，由 ExamGradingWorker 异步消费，提交接口立即返回
+        try {
+            stringRedisTemplate.opsForStream().add(
+                    GRADING_STREAM,
+                    Collections.singletonMap("examRecordId", String.valueOf(examRecordId)));
+        } catch (Exception e) {
+            // Redis 不可用时降级为同步判卷，保证交卷功能不因队列故障失效
+            log.warn("投递 Redis Stream 判卷任务失败，降级同步判卷。原因：{}", e.getMessage());
+            gradeExam(examRecordId);
+        }
     }
 
     @Override
