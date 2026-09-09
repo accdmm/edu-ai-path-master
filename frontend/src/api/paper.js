@@ -38,3 +38,11 @@ export function getPapers(params) {
     params
   })
 }
+
+// 获取我的 AI 生成私有试卷
+export function getMyAiPapers() {
+  return request({
+    url: '/api/papers/my-ai-papers',
+    method: 'get'
+  })
+}

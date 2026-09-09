@@ -162,6 +162,7 @@ DROP TABLE IF EXISTS exam_records;
 CREATE TABLE exam_records (
   id              BIGINT      NOT NULL AUTO_INCREMENT COMMENT '主键',
   exam_id         BIGINT      NOT NULL COMMENT '试卷ID',
+  user_id         BIGINT      DEFAULT NULL COMMENT '关联用户ID（登录用户考试时记录，NULL 表示游客按姓名登记）',
   student_name    VARCHAR(50) DEFAULT NULL COMMENT '考生姓名',
   score           INT         DEFAULT NULL COMMENT '得分',
   answers         TEXT        DEFAULT NULL COMMENT '答题记录（JSON）',
@@ -326,7 +327,12 @@ INSERT INTO categories (name, parent_id, sort) VALUES
 ('Spring', 0, 3),
 ('Spring Boot', 3, 4),
 ('MySQL', 0, 5),
-('前端', 0, 6);
+('前端', 0, 6),
+('集合框架', 1, 7),
+('多线程', 1, 8),
+('JVM', 1, 9),
+('MyBatis', 3, 10),
+('数据结构与算法', 0, 11);
 
 -- 示例题目（选择题 Java 基础）
 INSERT INTO questions (title, type, multi, category_id, difficulty, score, analysis) VALUES
@@ -610,3 +616,21 @@ INSERT INTO user_credit (user_id, total_credits, active_credits) VALUES
 
 INSERT INTO credit_record (user_id, change_amount, type, source, balance) VALUES
 (3, 100, 'invite', '激活邀请码 EDU2024DEMO 赠送', 100);
+
+-- ----------------------------------------
+-- 用户-试卷关联表（AI 生成试卷仅本人可见）
+-- ----------------------------------------
+DROP TABLE IF EXISTS user_paper;
+CREATE TABLE user_paper (
+  id          BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键',
+  user_id     BIGINT       NOT NULL COMMENT '归属用户ID',
+  paper_id    BIGINT       NOT NULL COMMENT '试卷ID',
+  relation_type VARCHAR(20) DEFAULT 'AI_GENERATED' COMMENT '关联类型：AI_GENERATED（AI生成）、ASSIGNED（管理员分配）',
+  create_time DATETIME     DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  update_time DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '修改时间',
+  is_deleted  TINYINT      DEFAULT 0 COMMENT '逻辑删除',
+  PRIMARY KEY (id),
+  KEY idx_user (user_id),
+  KEY idx_paper (paper_id),
+  UNIQUE KEY uk_user_paper (user_id, paper_id)
+) ENGINE = InnoDB COMMENT = '用户试卷关联表（AI 生成试卷归属）';

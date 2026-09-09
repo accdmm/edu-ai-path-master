@@ -26,6 +26,12 @@ const routes = [
     meta: { title: 'AI 智能客服', requiresAuth: true }
   },
   {
+    path: '/my-papers',
+    name: 'MyPapers',
+    component: () => import('../views/MyPapers.vue'),
+    meta: { title: '我的 AI 试卷', requiresAuth: true }
+  },
+  {
     path: '/home',
     name: 'Home',
     component: () => import('../views/Home.vue'),

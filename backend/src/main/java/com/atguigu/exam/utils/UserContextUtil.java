@@ -32,4 +32,21 @@ public class UserContextUtil {
         }
         return 1L;
     }
+
+    /**
+     * 当前请求是否携带有效 token（用于需要登录的私有资源访问鉴权）
+     * 注意：避免依赖 getUserId() 的回退默认值 1（该回退是答辩演示友好的）
+     */
+    public boolean isAuthenticated() {
+        String bearerToken = request.getHeader("Authorization");
+        if (!StringUtils.hasText(bearerToken) || !bearerToken.startsWith("Bearer ")) {
+            return false;
+        }
+        try {
+            Long userId = jwtUtil.getUserIdFromToken(bearerToken.substring(7));
+            return userId != null;
+        } catch (Exception e) {
+            return false;
+        }
+    }
 }

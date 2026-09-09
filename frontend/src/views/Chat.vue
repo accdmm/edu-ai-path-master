@@ -97,9 +97,7 @@
               <el-icon v-else size="24"><cpu /></el-icon>
             </div>
             <div class="message-content">
-              <div class="message-bubble">
-                {{ message.content }}
-              </div>
+              <div class="message-bubble" v-html="renderContent(message.content)"></div>
               <div class="message-time">{{ message.time }}</div>
             </div>
           </div>
@@ -190,6 +188,24 @@ const formatTime = (time) => {
     hour: '2-digit',
     minute: '2-digit'
   })
+}
+
+// 将聊天内容渲染为 HTML：支持换行与 /exam/start/{id} 试卷入口链接；其余文本 HTML 转义防 XSS
+const escapeHtml = (text) => {
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+const renderContent = (content) => {
+  if (!content) return ''
+  const escaped = escapeHtml(content)
+  return escaped
+    .replace(/\/exam\/start\/(\d+)/g, '<a href="/exam/start/$1" style="color:#4fc3f7;text-decoration:underline;">点击开始考试</a>')
+    .replace(/\n/g, '<br/>')
 }
 
 // 获取当前时间字符串

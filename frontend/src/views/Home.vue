@@ -10,6 +10,7 @@
         <el-button type="primary" @click="goToExam" icon="Document">考试入口</el-button>
         <el-button @click="goToRanking" icon="Trophy">考试排行榜</el-button>
         <el-button type="warning" @click="goToChat" icon="Cpu">AI 客服</el-button>
+        <el-button v-if="userStore.token" @click="goToMyPapers" icon="Document">我的AI试卷</el-button>
         <template v-if="userStore.token">
           <el-dropdown @command="handleUserCommand">
             <el-button icon="User">{{ userStore.userInfo?.username || '用户' }}</el-button>
@@ -521,6 +522,14 @@ const goToChat = () => {
     router.push('/chat')
   } else {
     router.push({ path: '/login', query: { redirect: '/chat' } })
+  }
+}
+
+const goToMyPapers = () => {
+  if (userStore.token) {
+    router.push('/my-papers')
+  } else {
+    router.push({ path: '/login', query: { redirect: '/my-papers' } })
   }
 }
 

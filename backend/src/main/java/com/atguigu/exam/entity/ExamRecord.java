@@ -24,6 +24,10 @@ public class ExamRecord extends BaseEntity {
             example = "1")
     private Integer examId; // 试卷ID
 
+    @Schema(description = "关联用户ID（登录用户考试时记录）", 
+            example = "1")
+    private Long userId; // 关联用户ID
+
     @Schema(description = "考生姓名", 
             example = "张三")
     private String studentName; // 考生姓名

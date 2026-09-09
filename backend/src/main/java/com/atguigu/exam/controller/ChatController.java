@@ -3,7 +3,10 @@ package com.atguigu.exam.controller;
 import com.atguigu.exam.agent.XiaohuAgent;
 import com.atguigu.exam.common.Result;
 import com.atguigu.exam.entity.ChatMessages;
+import com.atguigu.exam.entity.Paper;
+import com.atguigu.exam.service.AiGeneratedPaperService;
 import com.atguigu.exam.utils.JwtUtil;
+import com.atguigu.exam.vo.AiGenerateRequestVo;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -19,6 +22,8 @@ import org.springframework.web.bind.annotation.*;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @RestController
 @Slf4j
@@ -29,6 +34,9 @@ public class ChatController {
 
     @Autowired
     private XiaohuAgent xiaohuAgent;
+
+    @Autowired
+    private AiGeneratedPaperService aiGeneratedPaperService;
 
     @Autowired
     private MongoTemplate mongoTemplate;
@@ -43,12 +51,117 @@ public class ChatController {
     @PostMapping
     public Result<String> chat(@RequestBody ChatMessages chatMessages) {
         Long userId = getUserIdFromToken();
+        String content = chatMessages.getContent();
+        if (ObjectUtils.isEmpty(content)) {
+            return Result.error("消息内容不能为空");
+        }
 
-        String result = xiaohuAgent.chat(userId, chatMessages.getContent());
+        // 意图识别：生成整套试卷
+        if (isGeneratePaperRequest(content)) {
+            String reply = generatePaper(userId, content);
+            return Result.success(reply, "智能客服回复成功");
+        }
+
+        String result = xiaohuAgent.chat(userId, content);
         if (ObjectUtils.isEmpty(result)) {
             return Result.error("智能客服回复为空");
         }
         return Result.success(result, "智能客服回复成功");
+    }
+
+    /**
+     * 判断用户消息是否为"生成整套试卷"意图
+     */
+    private boolean isGeneratePaperRequest(String content) {
+        if (ObjectUtils.isEmpty(content)) {
+            return false;
+        }
+        // 命中生成试卷关键词，且不含明确的"找题/查题"意图
+        String[] keywords = {"生成一套", "出一套", "生成试卷", "帮我生成", "帮我出", "生成一套试卷"};
+        for (String keyword : keywords) {
+            if (content.contains(keyword) && (content.contains("试卷") || content.contains("题目") || content.contains("题"))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 解析试卷生成入参并调用 AI 生成，返回小胡风格回复
+     */
+    private String generatePaper(Long userId, String content) {
+        try {
+            String topic = parseTopic(content);
+            String difficulty = parseDifficulty(content);
+            Integer count = parseCount(content);
+
+            AiGenerateRequestVo request = new AiGenerateRequestVo();
+            request.setTopic(topic);
+            request.setCount(count);
+            request.setDifficulty(difficulty);
+            request.setTypes("CHOICE,JUDGE,TEXT");
+
+            Paper paper = aiGeneratedPaperService.generateAndSave(userId, request);
+
+            return "试卷已为你生成！\n"
+                    + "📋 试卷名称：" + paper.getName() + "\n"
+                    + "题目数量：" + paper.getQuestionCount() + " 道\n"
+                    + "总分：" + paper.getTotalScore() + " 分\n"
+                    + "考试时长：60 分钟\n\n"
+                    + "点击开始考试：/exam/start/" + paper.getId() + "\n"
+                    + "这是你的私有试卷，其他人看不到哦。也可以去【我的AI试卷】页面查看。";
+        } catch (Exception e) {
+            log.error("AI 生成整套试卷失败", e);
+            return "抱歉，生成试卷时出了点问题：" + e.getMessage() + "。请稍后再试，或换个说法再问我一次～";
+        }
+    }
+
+    /**
+     * 从消息中提取知识点主题
+     */
+    private String parseTopic(String content) {
+        // 优先提取"XX的试卷"或"一套XX"中的主题
+        Matcher m1 = Pattern.compile("(?:生成|出|来)[一套]?([^，。！？,.]+?)[的]?(?:试卷|测试题|练习题|题)").matcher(content);
+        if (m1.find()) {
+            String topic = m1.group(1).trim();
+            if (!topic.isEmpty() && topic.length() <= 30) {
+                return topic;
+            }
+        }
+        // 去掉常见动词后取合理长度片段
+        String cleaned = content.replaceAll("(帮我|请|麻烦|生成|出|给|来|一套)", "").trim();
+        cleaned = cleaned.replaceAll("[，。！？,.：:;；]", "").trim();
+        if (!cleaned.isEmpty() && cleaned.length() <= 30) {
+            return cleaned;
+        }
+        return cleaned.length() > 30 ? cleaned.substring(0, 30) : "Java 基础";
+    }
+
+    /**
+     * 从消息中提取难度
+     */
+    private String parseDifficulty(String content) {
+        if (content.contains("困难") || content.contains("难")) {
+            return "HARD";
+        }
+        if (content.contains("简单") || content.contains("容易") || content.contains("基础")) {
+            return "EASY";
+        }
+        return "MEDIUM";
+    }
+
+    /**
+     * 从消息中提取题目数量
+     */
+    private Integer parseCount(String content) {
+        Matcher m = Pattern.compile("(\\d+)\\s*(?:道|题|个|条)").matcher(content);
+        if (m.find()) {
+            int n = Integer.parseInt(m.group(1));
+            if (n >= 1 && n <= 20) {
+                return n;
+            }
+        }
+        return 10;
     }
 
     @Operation(summary = "获取聊天记录列表")

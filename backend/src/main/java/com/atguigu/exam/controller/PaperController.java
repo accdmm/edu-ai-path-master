@@ -2,7 +2,10 @@ package com.atguigu.exam.controller;
 
 import com.atguigu.exam.common.Result;
 import com.atguigu.exam.entity.Paper;
+import com.atguigu.exam.entity.UserPaper;
 import com.atguigu.exam.service.PaperService;
+import com.atguigu.exam.service.UserPaperService;
+import com.atguigu.exam.utils.UserContextUtil;
 import com.atguigu.exam.vo.AiPaperVo;
 import com.atguigu.exam.vo.PaperVo;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -32,6 +35,12 @@ public class PaperController {
     @Autowired
     private PaperService paperService;
 
+    @Autowired
+    private UserPaperService userPaperService;
+
+    @Autowired
+    private UserContextUtil userContextUtil;
+
     /**
      * 获取所有试卷列表（支持模糊搜索和状态筛选）
      */
@@ -47,6 +56,24 @@ public class PaperController {
         List<Paper> paperList = paperService.list(queryWrapper);
         log.info("试卷列表接口调用成功！本次条件：name = {} , status = {} , 查询列表为：{}",
                 name, status, paperList);
+        return Result.success(paperList);
+    }
+
+    /**
+     * 获取当前用户的 AI 生成私有试卷列表
+     */
+    @GetMapping("/my-ai-papers")
+    @Operation(summary = "获取我的AI生成试卷", description = "获取当前登录用户通过 AI 智能生成的私有试卷列表")  // API描述
+    public Result<List<Paper>> myAiPapers() {
+        if (!userContextUtil.isAuthenticated()) {
+            return Result.error(401, "请先登录");
+        }
+        Long userId = userContextUtil.getUserId();
+        List<UserPaper> userPapers = userPaperService.listByUserId(userId);
+        List<Paper> paperList = userPapers.stream()
+                .map(UserPaper::getPaper)
+                .filter(java.util.Objects::nonNull)
+                .collect(java.util.stream.Collectors.toList());
         return Result.success(paperList);
     }
 
@@ -91,12 +118,14 @@ public class PaperController {
     }
 
     /**
-     * 获取试卷详情（包含题目）
+     * 获取试卷详情（包含题目），私有试卷需归属校验
      */
     @GetMapping("/{id}")  // 处理GET请求
-    @Operation(summary = "获取试卷详情", description = "获取试卷的详细信息，包括试卷基本信息和包含的所有题目")  // API描述
+    @Operation(summary = "获取试卷详情", description = "获取试卷的详细信息，包括试卷基本信息和包含的所有题目；私有DRAFT卷仅归属用户可访问")  // API描述
     public Result<Paper> getPaperById(@Parameter(description = "试卷ID") @PathVariable Long id) {
-        Paper paper =  paperService.customPaperDetailById(id);
+        // 未登录用户传 -1L：私有 DRAFT 卷是非本人，归属校验必失败；PUBLISHED 公开卷仍可访问
+        Long userId = userContextUtil.isAuthenticated() ? userContextUtil.getUserId() : -1L;
+        Paper paper =  paperService.customPaperDetailByIdWithAuth(id, userId);
         log.info("查询试卷详情接口成功！试卷信息为:{}",paper);
         return Result.success(paper);
     }

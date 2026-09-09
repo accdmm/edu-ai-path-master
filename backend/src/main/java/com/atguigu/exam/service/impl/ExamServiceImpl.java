@@ -9,6 +9,8 @@ import com.atguigu.exam.service.AnswerRecordService;
 import com.atguigu.exam.service.ExamService;
 import com.atguigu.exam.service.KimiAiService;
 import com.atguigu.exam.service.PaperService;
+import com.atguigu.exam.service.UserPaperService;
+import com.atguigu.exam.utils.UserContextUtil;
 import com.atguigu.exam.vo.ExamRankingVO;
 import com.atguigu.exam.vo.GradingResult;
 import com.atguigu.exam.vo.StartExamVo;
@@ -51,10 +53,28 @@ public class ExamServiceImpl extends ServiceImpl<ExamRecordMapper, ExamRecord> i
     @Autowired
     private ExamRecordMapper examRecordMapper;
 
+    @Autowired
+    private UserPaperService userPaperService;
+
+    @Autowired
+    private UserContextUtil userContextUtil;
+
     //开始考试
     @Override
     public ExamRecord startExam(StartExamVo startExamVo) {
+        Long currentUserId = userContextUtil.getUserId();
         //宏观： 创建一个考试对象，并存储到数据库即可
+        //0. 私有试卷(DRAFT/AI生成卷)开考权限校验：仅归属用户可考；PUBLISHED 对所有用户开放
+        Paper paper = paperService.getById(startExamVo.getPaperId());
+        if (paper == null) {
+            throw new RuntimeException("指定试卷不存在，无法开始考试！");
+        }
+        if (!"PUBLISHED".equals(paper.getStatus())) {
+            boolean allowed = userPaperService.existRelation(currentUserId, startExamVo.getPaperId().longValue());
+            if (!allowed) {
+                throw new RuntimeException("该试卷为私有试卷，您无权开始考试！");
+            }
+        }
         //1. 校验，该学生当前试卷是否存在正在考试的记录！ 存在进行中，返回即可
         LambdaQueryWrapper<ExamRecord> lambdaQueryWrapper = new LambdaQueryWrapper<>();
         lambdaQueryWrapper.eq(ExamRecord::getStudentName, startExamVo.getStudentName());
@@ -69,6 +89,7 @@ public class ExamServiceImpl extends ServiceImpl<ExamRecordMapper, ExamRecord> i
         examRecord = new ExamRecord();
         examRecord.setStudentName(startExamVo.getStudentName());
         examRecord.setExamId(startExamVo.getPaperId());
+        examRecord.setUserId(currentUserId);
         examRecord.setStatus("进行中");
         examRecord.setWindowSwitches(0);
         examRecord.setStartTime(LocalDateTime.now());

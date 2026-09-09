@@ -22,6 +22,15 @@ public interface PaperService extends IService<Paper> {
     Paper customPaperDetailById(Long id);
 
     /**
+     * 根据试卷id查详情并校验访问权限
+     * 发布(PUBLISHED)试卷所有人可看；草稿(DRAFT)试卷仅归属用户可见
+     * @param id 试卷id
+     * @param userId 访问者用户id
+     * @return
+     */
+    Paper customPaperDetailByIdWithAuth(Long id, Long userId);
+
+    /**
      * 手动组卷
      * @param paperVo
      * @return

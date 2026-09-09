@@ -37,6 +37,14 @@ edu-ai-path-master/
   - 无 token 访问 `/api/user/info` → HTTP 401 + `{"code":401,...}` JSON。
   - `POST /api/chat`（带 token）→ code=200，Kimi 真实中文回复。
 
+### AI 聊天生成试卷（已在客服中打通）
+- **能力**：对客服说「帮我生成一套 JVM 试卷」→ LLM 真实出题 → 事务落库（questions/choices/answers + paper[状态DRAFT] + paper_question + user_paper）→ 绑定当前登录用户 → 聊天回复含可点击链接「点击开始考试：/exam/start/{id}」。用户可去「我的AI试卷」页查看并开考。
+- **关键坑（已被迫改架构）**：LangChain4j 1.0.0-beta3 的 AiService 工具回传存在序列化缺陷——`InternalOpenAiHelper` 把 `ToolExecutionResultMessage` 转成 `ToolMessage.from(toolCallId, text)`，**TOOL 消息不带 `name` 字段**，DashScope 的 Kimi K3 会报 `tool messages need a resolvable tool name`（InvalidParameter，会话级崩溃）。无法配置解决 → **`XiaohuAgent` 已移除全部 tools**，改由 `ChatController.chat` 手动意图识别：命中「生成一套/出一套/生成试卷/帮我生成/帮我出」+ 含「试卷/题目/题」→ 调 `AiGeneratedPaperService`；否则普通问答。提示词 `XiaohuSystemPrompt` 选项 B 同步改为「引导用户直接说【帮我生成一套 XX 试卷】，系统自动识别」（勿提工具）。
+- **出题模型**：`DashScopeConfig` 新增 `paperChatModel` bean（配置 `dashscope.paper-model`，为空回退主模型 kimi-k3），统一走 `buildOpenAiChatModel()`（**timeout 8 分钟 + maxRetries(1)**）。qwen-plus 报 `AllocationQuota.FreeTierOnly`（免费额度用尽），kimi-k3 可用、用于出题。
+- **落库数据规范**（已验证）：CHOICE 答案 `question_answers.answer` 存选项字母（多选 A,B,D 逗号分隔，由 is_correct 推导）；JUDGE 存 TRUE/FALSE；TEXT 存文本；选项字母由 sort 推导（表无 choice_character 列）。
+- **越权漏洞已修复**：原本 `UserContextUtil.getUserId()` 无 token 回退 `1L`（答辩演示友好），而 admin 的 userId 恰为 1 → 无 token 也能看「我的AI试卷」和 DRAFT 私有卷详情。修复：`UserContextUtil` 新增 `isAuthenticated()`；`PaperController` 的 `/my-ai-papers` 需登录（否则 code=401），`GET /{id}` 对未登录访问者传 `userId=-1L`（永不命中归属校验），PUBLISHED 公开卷仍可匿名访问。`ExamServiceImpl.startExam` 对 DRAFT 卷做归属校验并写 `exam_records.user_id`。
+- **遗留**：`exam_records`/`paper` 含联调产生的测试数据（paper id=2、3 为 kimi-k3 生成的 AI 卷，可留作演示；exam_records id=1 为测试记录）。
+
 ### 数据库
 - `scripts/init.sql` 已执行（MySQL 8.0，库 `exam_system_0625`，账号 root/root）：**16 张核心表 + 11 张商业化闭环表 = 27 张表** + 种子数据。
   - 默认用户：admin/teacher/student，密码均 123456（BCrypt）。
@@ -58,6 +66,8 @@ edu-ai-path-master/
   - `views/InterviewCodes.vue`：原为空文件导致 build 失败，改为占位页。
   - `api/interviewQuestion.js`：补 `getRelatedQuestions` / `toggleFavorite` / `submitEvaluation`。
   - `views/InterviewResult.vue`：图标 `Lightbulb` 不存在，改 `Aim`。
+  - `views/Chat.vue`：消息气泡改 `v-html` + `renderContent`（escapeHtml 防 XSS + `/exam/start/(\d+)` 转可点击链接 + `\n` 转 `<br/>`）。
+  - `views/MyPapers.vue` 新建：我的AI试卷列表（卡片 + 开始考试/看详情/空态/loading），路由 `/my-papers`（requiresAuth），Home 导航栏加「我的AI试卷」按钮，`api/paper.js` 补 `getMyAiPapers()`。
 - `package.json` 添加 `sass`（Chat.vue 用 scss）。
 
 ### 商业化闭环后端（已开发并验证，详见 PLAN-商业化闭环.md）
@@ -93,6 +103,7 @@ pinecone:
 
 - Spring Security 放行大多数接口，仅 `/api/chat/**`、`/api/user/info`、`/api/user/updatePwd` 需认证。
 - 未认证访问受保护接口 → `authenticationEntryPoint` 返回 `Result{code:401}` JSON（非默认 403）。
+- **私有资源业务级鉴权**（SecurityConfig permitAll 场景下在 service/controller 层强制）：`/api/papers/{id}`（DRAFT 卷仅归属用户，匿名传 -1L）、`/api/papers/my-ai-papers`（需登录）、`/api/exams/start`（DRAFT 卷归属校验 + 写 user_id）。`UserContextUtil` 提供 `isAuthenticated()`，切勿依赖 `getUserId()` 的 1L 回退判断登录态。
 - 管理端写接口暂未强制鉴权，后续可在前端全链路 token 化后收紧。
 
 ## 6. 还需做（待办/阻塞项）
@@ -104,7 +115,7 @@ pinecone:
 
 ### 待办（可自主推进）
 1. **管理端前端鉴权**：`views/AdminLayout.vue` 等管理页面目前无 token 校验；完成"管理员登录存 token → 管理端路由守卫 → 后端管理接口鉴权"闭环。
-2. **Chat.vue + 模拟面试 UI 浏览器验证**：前后端已就绪，用户自行在浏览器走一遍登录→聊天→模拟面试流程（未执行 UI 级测试）。
+2. **Chat.vue + 模拟面试 UI 浏览器验证**：前后端已就绪，用户自行在浏览器走一遍登录→聊天→模拟面试流程（未执行 UI 级测试）。其中「AI 聊天生成试卷」链路已做 HTTP 级验证，但「点击聊天链接跳开考」「我的AI试卷页开考」等 UI 交互待用户浏览器确认。
 3. **`.gitignore`**：非 git 仓库，若未来 git init 需忽略 `scripts/mongodb-data/`、`frontend/node_modules/`、`backend/target/`、`backend/uploads/`。
 4. **中文控制台乱码**：后端日志/接口在 PowerShell 输出中文乱码（实际 UTF-8 数据正常），联调建议用 Python 或文件方式断言，勿信终端显示。
 

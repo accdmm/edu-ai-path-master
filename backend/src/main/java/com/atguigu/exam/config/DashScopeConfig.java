@@ -35,6 +35,9 @@ public class DashScopeConfig {
     @Value("${dashscope.chat-model:qwen-max}")
     private String chatModelName;
 
+    @Value("${dashscope.paper-model:}")
+    private String paperModelName;
+
     @Value("${dashscope.embedding-model:text-embedding-v3}")
     private String embeddingModelName;
 
@@ -51,11 +54,7 @@ public class DashScopeConfig {
     public ChatLanguageModel qwenChatModel() {
         if (StringUtils.hasText(apiKey)) {
             log.info("使用阿里云百炼 DashScope 模型: {}（OpenAI 兼容接口）", chatModelName);
-            return OpenAiChatModel.builder()
-                    .baseUrl(DASHSCOPE_BASE_URL)
-                    .apiKey(apiKey)
-                    .modelName(chatModelName)
-                    .build();
+            return buildOpenAiChatModel(chatModelName);
         }
         // 降级：回退到 Kimi（Moonshot）OpenAI 兼容接口
         log.warn("未配置 dashscope.api-key，AI 客服回退到 Kimi(Moonshot) 模型: {}", kimiModel);
@@ -68,6 +67,31 @@ public class DashScopeConfig {
                 .baseUrl(baseUrl)
                 .apiKey(kimiApiKey)
                 .modelName(kimiModel)
+                .timeout(java.time.Duration.ofMinutes(3))
+                .maxRetries(1)
+                .build();
+    }
+
+    /**
+     * 试卷生成专用模型（默认跟随主聊天模型 kimi-k3，可通过 dashscope.paper-model 覆盖）
+     */
+    @Bean(name = "paperChatModel")
+    public ChatLanguageModel paperChatModel() {
+        if (StringUtils.hasText(apiKey)) {
+            String modelName = StringUtils.hasText(paperModelName) ? paperModelName : chatModelName;
+            log.info("使用 DashScope 试卷生成模型: {}（OpenAI 兼容接口）", modelName);
+            return buildOpenAiChatModel(modelName);
+        }
+        return qwenChatModel();
+    }
+
+    private ChatLanguageModel buildOpenAiChatModel(String modelName) {
+        return OpenAiChatModel.builder()
+                .baseUrl(DASHSCOPE_BASE_URL)
+                .apiKey(apiKey)
+                .modelName(modelName)
+                .timeout(java.time.Duration.ofMinutes(8))
+                .maxRetries(1)
                 .build();
     }
 

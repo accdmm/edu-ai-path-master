@@ -10,6 +10,7 @@ import com.atguigu.exam.mapper.PaperMapper;
 import com.atguigu.exam.mapper.QuestionMapper;
 import com.atguigu.exam.service.PaperQuestionService;
 import com.atguigu.exam.service.PaperService;
+import com.atguigu.exam.service.UserPaperService;
 import com.atguigu.exam.vo.AiPaperVo;
 import com.atguigu.exam.vo.PaperVo;
 import com.atguigu.exam.vo.RuleVo;
@@ -45,6 +46,32 @@ public class PaperServiceImpl extends ServiceImpl<PaperMapper, Paper> implements
 
     @Autowired
     private ExamRecordMapper examRecordMapper;
+
+    @Autowired
+    private UserPaperService userPaperService;
+
+    /**
+     * 根据试卷id试卷详情（带访问权限校验）
+     * 发布(PUBLISHED)试卷所有人可看；草稿(DRAFT)试卷仅归属用户可见
+     * @param id 试卷id
+     * @param userId 访问者用户id
+     * @return
+     */
+    @Override
+    public Paper customPaperDetailByIdWithAuth(Long id, Long userId) {
+        Paper paper = getById(id);
+        if (paper == null) {
+            throw new RuntimeException("指定id:%s试卷已经被删除，无法查看详情！".formatted(id));
+        }
+        // 私有草稿卷权限校验：AI 生成卷(DRAFT)仅本人可见
+        if (!"PUBLISHED".equals(paper.getStatus())) {
+            boolean allowed = userPaperService.existRelation(userId, id);
+            if (!allowed) {
+                throw new RuntimeException("该试卷为私有试卷，您无权访问！");
+            }
+        }
+        return customPaperDetailById(id);
+    }
 
     /**
      * 根据试卷id试卷详情
