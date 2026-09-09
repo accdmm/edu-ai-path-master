@@ -149,13 +149,14 @@ async function loadReport() {
   try {
     const res = await getLearningReport()
     report.value = res.data || report.value
-    await nextTick()
-    renderCharts()
   } catch (e) {
     console.error('加载学习报告失败', e)
   } finally {
+    // 先释放 loading，v-else 的图表 DOM 才挂载，随后再初始化 echarts
     loading.value = false
   }
+  await nextTick()
+  renderCharts()
 }
 
 async function loadSuggest() {
@@ -280,6 +281,7 @@ function renderRadarChart() {
 }
 
 function initChart(chart, ref) {
+  if (!ref) return null
   if (chart) chart.dispose()
   return echarts.init(ref)
 }
