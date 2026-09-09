@@ -8,6 +8,20 @@
 
     <!-- 主要内容 -->
     <div v-else-if="examRecord" class="result-container">
+      <!-- AI判卷进行中提示面板 -->
+      <div v-if="gradingNow" class="grading-progress-panel">
+        <div class="grading-panel-inner">
+          <div class="grading-panel-icon">
+            <el-icon class="is-loading"><Loading /></el-icon>
+          </div>
+          <div class="grading-panel-text">
+            <h3>🤖 AI 判卷进行中...</h3>
+            <p>系统正在使用人工智能批改您的答卷，结果将在批阅完成后自动刷新</p>
+            <p class="grading-panel-tip">预计需要 1 分钟以内，请勿关闭页面</p>
+          </div>
+        </div>
+      </div>
+      <template v-if="!gradingNow">
       <!-- 考试完成提示 -->
       <div class="completion-notice">
         <div class="notice-content">
@@ -228,6 +242,7 @@
           </div>
         </div>
       </div>
+      </template>
     </div>
 
     <!-- 成绩单下载区域（隐藏） -->
@@ -297,6 +312,36 @@ const loading = ref(true)
 const examRecord = ref(null)
 const downloadArea = ref(null)
 const rankingInfo = ref(null)
+const gradingPollTimer = ref(null)
+const gradingPollCount = ref(0)
+
+// AI判卷中状态（异步判卷时结果页自动轮询刷新）
+const gradingNow = computed(() => {
+  return examRecord.value && examRecord.value.status === '判卷中'
+})
+
+const startGradingPoll = () => {
+  stopGradingPoll()
+  gradingPollCount.value = 0
+  gradingPollTimer.value = setInterval(async () => {
+    gradingPollCount.value += 1
+    if (gradingPollCount.value >= 60) {
+      stopGradingPoll()
+      return
+    }
+    await fetchExamResult(true)
+    if (!gradingNow.value) {
+      stopGradingPoll()
+    }
+  }, 2000)
+}
+
+const stopGradingPoll = () => {
+  if (gradingPollTimer.value) {
+    clearInterval(gradingPollTimer.value)
+    gradingPollTimer.value = null
+  }
+}
 
 // 计算属性
 const scorePercentage = computed(() => {
@@ -529,8 +574,10 @@ const fetchRankingInfo = async (examRecordId, paperId) => {
 }
 
 // 获取考试结果
-const fetchExamResult = async () => {
-  loading.value = true
+const fetchExamResult = async (silent = false) => {
+  if (!silent) {
+    loading.value = true
+  }
   try {
     const examRecordId = route.params.id || route.query.id
     console.log('获取考试结果，ID:', examRecordId)
@@ -578,6 +625,7 @@ const fetchExamResult = async () => {
     
     // 获取排名信息
     if (examRecord.value.status === '已批阅') {
+      stopGradingPoll()
       await fetchRankingInfo(examRecord.value.id, examRecord.value.examId)
     }
   } catch (error) {
@@ -876,7 +924,11 @@ const preventBackToExam = () => {
 }
 
 onMounted(() => {
-  fetchExamResult()
+  fetchExamResult().then(() => {
+    if (gradingNow.value) {
+      startGradingPoll()
+    }
+  })
   
   // 使用 replace 替换当前历史记录，防止返回到考试页面
   const currentPath = route.path
@@ -2189,5 +2241,48 @@ onMounted(() => {
     border-right: none;
     border-bottom: 1px solid #f0f0f0;
   }
+}
+
+.grading-progress-panel {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 16px;
+  padding: 28px 32px;
+  margin-bottom: 24px;
+  color: #fff;
+  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.35);
+  animation: gradingPanelPulse 2s ease-in-out infinite;
+}
+
+.grading-progress-panel .grading-panel-inner {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.grading-progress-panel .grading-panel-icon {
+  font-size: 42px;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.grading-progress-panel .grading-panel-text h3 {
+  margin: 0 0 6px 0;
+  font-size: 20px;
+}
+
+.grading-progress-panel .grading-panel-text p {
+  margin: 0 0 4px 0;
+  opacity: 0.92;
+  font-size: 14px;
+}
+
+.grading-progress-panel .grading-panel-tip {
+  font-size: 12px !important;
+  opacity: 0.75 !important;
+}
+
+@keyframes gradingPanelPulse {
+  0%, 100% { box-shadow: 0 8px 24px rgba(102, 126, 234, 0.35); }
+  50% { box-shadow: 0 8px 32px rgba(102, 126, 234, 0.6); }
 }
 </style> 

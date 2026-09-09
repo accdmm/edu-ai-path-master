@@ -1,20 +1,5 @@
 <template>
   <div class="exam-container">
-    <!-- AI智能判卷进度遮罩 -->
-    <div v-if="isGrading" class="grading-overlay">
-      <div class="grading-content">
-        <div class="grading-icon">
-          <el-icon class="is-loading"><Loading /></el-icon>
-        </div>
-        <h3>🤖 AI智能判卷中...</h3>
-        <p>系统正在使用人工智能对您的试卷进行批改，请稍候</p>
-        <div class="grading-progress">
-          <el-progress :percentage="gradingProgress" :stroke-width="8" status="success" striped striped-flow />
-          <p class="progress-text">{{ gradingStatusText }}</p>
-        </div>
-      </div>
-    </div>
-    
     <!-- 考试头部区域 -->
     <div class="exam-header">
       <div class="header-left">
@@ -119,9 +104,6 @@ const timer = ref(null);
 const remainingTime = ref(0);
 const totalTime = ref(0);
 const isSubmitting = ref(false);
-const isGrading = ref(false);
-const gradingProgress = ref(0);
-const gradingStatusText = ref('');
 
 const getExamData = async () => {
   try {
@@ -278,41 +260,10 @@ const forceSubmit = async () => {
       overlay.remove();
     }
     
-    ElMessage.success('时间到期，系统已自动交卷！');
+    ElMessage.success('时间到期，系统已自动交卷！AI 判卷进行中，请稍候');
     
-    // 显示AI判卷进度
-    isGrading.value = true;
-    gradingProgress.value = 0;
-    gradingStatusText.value = '正在分析试卷内容...';
-    
-    // 模拟AI判卷进度
-    const progressInterval = setInterval(() => {
-      if (gradingProgress.value < 30) {
-        gradingProgress.value += 5;
-        gradingStatusText.value = '正在分析试卷内容...';
-      } else if (gradingProgress.value < 60) {
-        gradingProgress.value += 3;
-        gradingStatusText.value = '正在智能批改客观题...';
-      } else if (gradingProgress.value < 90) {
-        gradingProgress.value += 2;
-        gradingStatusText.value = '正在AI评估主观题...';
-      } else if (gradingProgress.value < 100) {
-        gradingProgress.value += 1;
-        gradingStatusText.value = '正在生成考试报告...';
-      }
-    }, 300);
-    
-    // 等待3-5秒后跳转（给用户足够的视觉反馈）
-    setTimeout(() => {
-      clearInterval(progressInterval);
-      gradingProgress.value = 100;
-      gradingStatusText.value = '批改完成！正在跳转到结果页面...';
-      
-      setTimeout(() => {
-        isGrading.value = false;
-        router.push(`/exam-result/${examRecordId}`);
-      }, 1000);
-    }, 4000);
+    // 提交成功后直接进入结果页（AI 判卷在后台异步进行）
+    router.push(`/exam-result/${examRecordId}`);
     
   } catch (error) {
     console.error('自动交卷失败:', error);
@@ -457,42 +408,9 @@ const submit = async () => {
     await submitAnswers(examRecordId, formattedAnswers);
     ElMessage.closeAll();
     ElMessage.success('交卷成功！AI 判卷进行中，请稍候进入结果页');
-    ElMessage.info('若试卷含简答题，AI 批阅约需 1 分钟，请勿关闭页面');
     
-    // 显示AI判卷进度
-    isGrading.value = true;
-    gradingProgress.value = 0;
-    gradingStatusText.value = '正在分析试卷内容...';
-    
-    // 模拟AI判卷进度
-    const progressInterval = setInterval(() => {
-      if (gradingProgress.value < 30) {
-        gradingProgress.value += 5;
-        gradingStatusText.value = '正在分析试卷内容...';
-      } else if (gradingProgress.value < 60) {
-        gradingProgress.value += 3;
-        gradingStatusText.value = '正在智能批改客观题...';
-      } else if (gradingProgress.value < 90) {
-        gradingProgress.value += 2;
-        gradingStatusText.value = '正在AI评估主观题...';
-      } else if (gradingProgress.value < 100) {
-        gradingProgress.value += 1;
-        gradingStatusText.value = '正在生成考试报告...';
-      }
-    }, 300);
-    
-    // 等待3-5秒后跳转（给用户足够的视觉反馈）
-    setTimeout(() => {
-      clearInterval(progressInterval);
-      gradingProgress.value = 100;
-      gradingStatusText.value = '批改完成！正在跳转到结果页面...';
-      
-      setTimeout(() => {
-        isGrading.value = false;
-        // 跳转到结果页面，使用路径参数而不是query参数
-        router.push(`/exam-result/${examRecordId}`);
-      }, 1000);
-    }, 4000);
+    // 提交成功后直接进入结果页（AI 判卷在后台异步执行，结果页会自动轮询）
+    router.push(`/exam-result/${examRecordId}`);
     
   } catch (error) {
     console.error('提交试卷失败:', error);
@@ -500,13 +418,11 @@ const submit = async () => {
     // 如果是重复提交错误，直接跳转
     if (error.message && error.message.includes('已完成')) {
       ElMessage.success('考试已完成，正在跳转到结果页面...');
-      isGrading.value = false;
       setTimeout(() => {
         router.push(`/exam-result/${route.params.id}`);
       }, 1500);
     } else {
       ElMessage.error(error.message || '交卷失败，请稍后重试');
-      isGrading.value = false;
     }
   } finally {
     isSubmitting.value = false;
