@@ -17,8 +17,13 @@
           <div class="grading-panel-text">
             <h3>🤖 AI 判卷进行中...</h3>
             <p>系统正在使用人工智能批改您的答卷，结果将在批阅完成后自动刷新</p>
-            <p class="grading-panel-tip">预计需要 1 分钟以内，请勿关闭页面</p>
+            <p class="grading-panel-tip">已等待 {{ gradingElapsed }}s · 全客观题试卷通常几秒内完成</p>
           </div>
+        </div>
+        <div class="grading-steps">
+          <div class="grading-step"><span class="step-check">✓</span>客观题比对评分</div>
+          <div class="grading-step"><span class="step-check">✓</span>简答题 AI 批阅</div>
+          <div class="grading-step"><span class="step-check">✓</span>成绩汇总与总评</div>
         </div>
       </div>
       <template v-if="!gradingNow">
@@ -314,6 +319,9 @@ const downloadArea = ref(null)
 const rankingInfo = ref(null)
 const gradingPollTimer = ref(null)
 const gradingPollCount = ref(0)
+const gradingElapsed = ref(0)
+const gradingElapsedTimer = ref(null)
+let gradingStartAt = 0
 
 // AI判卷中状态（异步判卷时结果页自动轮询刷新）
 const gradingNow = computed(() => {
@@ -323,9 +331,13 @@ const gradingNow = computed(() => {
 const startGradingPoll = () => {
   stopGradingPoll()
   gradingPollCount.value = 0
+  gradingStartAt = Date.now()
+  gradingElapsedTimer.value = setInterval(() => {
+    gradingElapsed.value = Math.round((Date.now() - gradingStartAt) / 1000)
+  }, 1000)
   gradingPollTimer.value = setInterval(async () => {
     gradingPollCount.value += 1
-    if (gradingPollCount.value >= 60) {
+    if (gradingPollCount.value >= 40) {
       stopGradingPoll()
       return
     }
@@ -333,13 +345,17 @@ const startGradingPoll = () => {
     if (!gradingNow.value) {
       stopGradingPoll()
     }
-  }, 2000)
+  }, 3000)
 }
 
 const stopGradingPoll = () => {
   if (gradingPollTimer.value) {
     clearInterval(gradingPollTimer.value)
     gradingPollTimer.value = null
+  }
+  if (gradingElapsedTimer.value) {
+    clearInterval(gradingElapsedTimer.value)
+    gradingElapsedTimer.value = null
   }
 }
 
@@ -2279,6 +2295,49 @@ onMounted(() => {
 .grading-progress-panel .grading-panel-tip {
   font-size: 12px !important;
   opacity: 0.75 !important;
+}
+
+.grading-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.grading-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  padding: 5px 14px;
+  font-size: 13px;
+  opacity: 0.55;
+  animation: gradingStepDone 1.6s ease-in-out infinite;
+}
+
+.grading-step .step-check {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  line-height: 15px;
+  text-align: center;
+  border-radius: 50%;
+  background: #22c55e;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.grading-step:nth-child(1) { animation-delay: 0s; }
+.grading-step:nth-child(2) { animation-delay: 0.6s; }
+.grading-step:nth-child(3) { animation-delay: 1.2s; }
+
+@keyframes gradingStepDone {
+  0%, 100% { opacity: 0.55; }
+  30%, 70% { opacity: 1; }
 }
 
 @keyframes gradingPanelPulse {
