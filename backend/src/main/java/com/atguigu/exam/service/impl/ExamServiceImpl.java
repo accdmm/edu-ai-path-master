@@ -262,19 +262,31 @@ public class ExamServiceImpl extends ServiceImpl<ExamRecordMapper, ExamRecord> i
         answerRecordService.updateBatchById(answerRecords);
 
         //进行ai生成评价，进行考试记录修改和完善
+        //无简答题的试卷不需要 AI 总评（客观题已本地判分），直接规则评语，秒级完成判卷
+        boolean hasTextQuestion = paper.getQuestions().stream()
+                .anyMatch(q -> "TEXT".equalsIgnoreCase(q.getType()));
         String summary;
-        try {
-            summary = kimiAiService.
-                    buildSummary(totalScore, paper.getTotalScore().intValue(), paper.getQuestionCount(), correctNumber);
-        } catch (Exception e) {
-            // AI 总评失败时降级为规则型评语，保证交卷不中断
-            log.error("AI生成考试总评失败，使用规则兜底。原因：{}", e.getMessage());
+        if (!hasTextQuestion) {
             double percentage = paper.getTotalScore().intValue() == 0 ? 0
                     : (double) totalScore / paper.getTotalScore().intValue() * 100;
             summary = String.format("本次考试得分 %d/%d 分，得分率 %.1f%%，共 %d 道题，答对 %d 道。"
                     + "建议回顾错题对应的知识点，针对性练习，再接再厉！",
                     totalScore, paper.getTotalScore().intValue(), percentage,
                     paper.getQuestionCount(), correctNumber);
+        } else {
+            try {
+                summary = kimiAiService.
+                        buildSummary(totalScore, paper.getTotalScore().intValue(), paper.getQuestionCount(), correctNumber);
+            } catch (Exception e) {
+                // AI 总评失败时降级为规则型评语，保证交卷不中断
+                log.error("AI生成考试总评失败，使用规则兜底。原因：{}", e.getMessage());
+                double percentage = paper.getTotalScore().intValue() == 0 ? 0
+                        : (double) totalScore / paper.getTotalScore().intValue() * 100;
+                summary = String.format("本次考试得分 %d/%d 分，得分率 %.1f%%，共 %d 道题，答对 %d 道。"
+                        + "建议回顾错题对应的知识点，针对性练习，再接再厉！",
+                        totalScore, paper.getTotalScore().intValue(), percentage,
+                        paper.getQuestionCount(), correctNumber);
+            }
         }
 
         examRecord.setScore(totalScore);
