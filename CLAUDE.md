@@ -48,7 +48,9 @@ edu-ai-path-master/
 ### AI 学习分析（已开发并验证）
 - **能力**：补齐 Home「AI分析」入口死链 → 完整实现智能学习报告。`AnalysisController`（`/api/analysis/learning-report`、`/api/analysis/ai-suggest`，**均需登录**）+ `LearningAnalysisService(Impl)` + `LearningReportVo`（overview 概览 / scoreTrend 成绩趋势 / categoryMastery 知识点掌握 / radar 能力雷达 Top6）。
 - **数据源**（全部走既有 Mapper，代码层聚合，无新表）：`exam_records`(score 非 null) JOIN `paper.totalScore` → 趋势；`answer_record`→`questions.categoryId`→`categories.name` → 知识点得分率（按分值算）；`user_paper` → AI 卷数；`mock_interview` → 面试次数。空数据返回空集合不报错。
-- **AI 建议走 DashScope kimi-k3**：`generateAiSuggest` 注入 `@Qualifier("paperChatModel") ChatLanguageModel`，用 `chat()`（**注意 LangChain4j 1.0.0-beta3 无 `generate()`，统一用 `chat(String)`**）+ kimi.api-key 的 Moonshot `KimiAiService` 仅用于简答题批阅/出题，不做 AI 建议）。解析 `{"suggestions":[...]}` JSON（剥离 ```json 包裹），解析失败/调用失败**降级为规则型建议**。已验证返回 5 条真实建议，正确引用 interviewCount=3。
+- **AI 建议走 DashScope kimi-k3**：`generateAiSuggest` 注入 `@Qualifier("paperChatModel") ChatLanguageModel`，用 `chat()`（**注意 LangChain4j 1.0.0-beta3 无 `generate()`，统一用 `chat(String)`**）。解析 `{"suggestions":[...]}` JSON（剥离 ```json 包裹），解析失败/调用失败**降级为规则型建议**。已验证返回 5 条真实建议，正确引用 interviewCount=3。
+- **重要架构变更（2024-09 修复交卷 500）**：`KimiAiServiceImpl.callKimiAi` **已从 Moonshot WebClient 切换为 DashScope `paperChatModel`（kimi-k3）**。原因：`kimi.api-key`（${KIMI_API_KEY:}，无环境变量）下 Moonshot 必失败 → 考试简答题评分/总评/教师 AI 出题/模拟面试全挂，交卷报「已经重试3次！依然失败！」。切换后全部走已验证可用的 kimi-k3；`callKimiAi` 返回前增加 `stripJsonFence`（剥离 ```json 围栏）。`ExamServiceImpl.gradeExam` 的 `buildSummary` 加 try-catch → 失败降级规则型总评，**交卷永不 500**。WebClient/Moonshot 配置保留未动（降级路径仍在，仅不启用）。
+- **异步判卷（Redis Stream，已上线）**：`customSubmitAnswer` 不再同步判卷——保存答案后置状态 `判卷中` 并 `XADD exam:grade`（Stream：GROUP `grader` / CONSUMER `worker1`），立即返回；`ExamGradingWorker`（ApplicationRunner 后台线程）`XREADGROUP` 消费 → `gradeExam` → `XACK`。失败不 ACK 留 PEL，每 60s `XPENDING`+`XCLAIM`（idle>5min）重投，同一任务重试 ≥3 次强制降级结算（status `已批阅`，保留已有分数，评语降级）。Redis 不可用时 catch 降级为同步判卷。注意：Spring Data Redis 3.2.6 的签名是 `pending(key, group, Range.unbounded(), limit)`（返回 PendingMessages）、`PendingMessage.getElapsedTimeSinceLastDelivery()`（无 getIdleTimeMs）、StringRedisTemplate 的 stream 泛型为 `MapRecord<String,Object,Object>`。前端 `Exam.vue` 交卷成功后**直接跳 `/exam-result/{id}`**（已去掉 3–5s 假动画），`ExamResult.vue` 在 status=`判卷中` 时每 2s 静默轮询（上限 60 次）并在顶部显示紫色 AI 判卷面板；`/submit` axios timeout 放宽至 200s。客观题本地 `equalsIgnoreCase` 精确比对，仅简答题 AI 评分 + 总评 AI。
 - **前端**：`views/Analysis.vue`（概览统计卡 + echarts 折线/柱状/雷达 + AI 建议按钮，`el-empty` 空态）、`api/analysis.js`、`router` 加 `/analysis`（requiresAuth）。`npm run build` 通过。
 - 后端重启需带 `DASHSCOPE_API_KEY`（`cmd /c set KEY=... && mvn spring-boot:run`）。
 
@@ -76,6 +78,8 @@ edu-ai-path-master/
   - `views/Chat.vue`：消息气泡改 `v-html` + `renderContent`（escapeHtml 防 XSS + `/exam/start/(\d+)` 转可点击链接 + `\n` 转 `<br/>`）。
   - `views/MyPapers.vue` 新建：我的AI试卷列表（卡片 + 开始考试/看详情/空态/loading），路由 `/my-papers`（requiresAuth），Home 导航栏加「我的AI试卷」按钮，`api/paper.js` 补 `getMyAiPapers()`。
   - `views/Analysis.vue` 新建：AI学习分析页（概览卡 + echarts 折线/柱状/雷达 + AI建议按钮），路由 `/analysis`（requiresAuth），Home/Analysis 入口已打通。
+  - `views/Exam.vue` 修复：头顶进度条原绑**时间进度**（`progressPercentage`，与答题无关，答完也到不了 100%），改为绑 `answerProgress`（已作答/总数，多选按数组长度），并显示「已作答 X/Y 题」提示（`answer-count-tip`）。
+  - `views/ExamResult.vue` 修复：「下载成绩单」按钮前缀乱码（破损 emoji `��`）改为 `📊`；`gradeExam` 简答题改 `CompletableFuture` 并行（`AI_GRADING_EXECUTOR` 4 线程）。
 - `package.json` 添加 `sass`（Chat.vue 用 scss）。
 
 ### 商业化闭环后端（已开发并验证，详见 PLAN-商业化闭环.md）
