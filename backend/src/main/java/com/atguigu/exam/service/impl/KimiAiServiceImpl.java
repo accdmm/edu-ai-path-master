@@ -5,22 +5,17 @@ import ch.qos.logback.core.joran.conditional.IfAction;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.alibaba.fastjson2.JSON;
-import com.atguigu.exam.config.properties.KimiProperties;
 import com.atguigu.exam.entity.Question;
 import com.atguigu.exam.service.KimiAiService;
 import com.atguigu.exam.vo.AiGenerateRequestVo;
 import com.atguigu.exam.vo.GradingResult;
 import com.atguigu.exam.vo.QuestionImportVo;
+import dev.langchain4j.model.chat.ChatLanguageModel;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
-import org.springframework.web.reactive.function.client.WebClient;
-import reactor.core.publisher.Mono;
 
-import java.time.Duration;
 import java.util.*;
 
 /**
@@ -32,10 +27,8 @@ import java.util.*;
 public class KimiAiServiceImpl implements KimiAiService {
 
     @Autowired
-    private WebClient webClient;
-
-    @Autowired
-    private KimiProperties kimiProperties;
+    @Qualifier("paperChatModel")
+    private ChatLanguageModel paperChatModel;
 
     @Override
     public String buildSummary(Integer totalScore, Integer maxScore, Integer questionCount, Integer correctCount) throws InterruptedException {
@@ -193,60 +186,37 @@ public class KimiAiServiceImpl implements KimiAiService {
         int maxTry = 3; //最多重试3次
         for (int i = 1; i <= 3; i++) {
             try {
-                //请求体的内容 https://platform.moonshot.cn/docs/api/chat#%E8%AF%B7%E6%B1%82%E5%86%85%E5%AE%B9
-                Map<String,String> userMap = new HashMap<>();
-                userMap.put("role","user");
-                userMap.put("content",prompt); //提示词
-                List<Map> messagesList = new ArrayList<>();
-                messagesList.add(userMap);
-
-                Map<String,Object> requestBody = new HashMap<>();
-                requestBody.put("model",kimiProperties.getModel());
-                requestBody.put("messages",messagesList);
-                requestBody.put("temperature", kimiProperties.getTemperature());
-                requestBody.put("max_tokens", kimiProperties.getMaxTokens());
-
-                //2. 发起网络请求调用
-                Mono<String> stringMono = webClient.post()
-                        .bodyValue(requestBody)
-                        .retrieve() //准备了
-                        .bodyToMono(String.class)
-                        .timeout(Duration.ofSeconds(100));
-
-                //webClient异步请求
-                //同步
-                String result = stringMono.block();
-                //jackson工具！ JsonObject JsonArray
-                JSONObject resultJsonObject = JSONObject.parseObject(result);
-
-                //错误结果：https://platform.moonshot.cn/docs/api/chat#错误说明
-                if (resultJsonObject.containsKey("error")){
-                    throw new RuntimeException("访问错误了，错误信息为:" +
-                            resultJsonObject.getJSONObject("error").getString("message") );
-                }
-                //正确结果：https://platform.moonshot.cn/docs/api/chat#%E8%BF%94%E5%9B%9E%E5%86%85%E5%AE%B9
-                //获取返回内容content
-                // ```json  ```
-                String content = resultJsonObject.getJSONArray("choices").getJSONObject(0).
-                        getJSONObject("message").getString("content");
-                log.debug("调用kimi返回的结果为：{}",content);
-
-                if (content == null || content.isEmpty()){
+                // 走 DashScope kimi-k3（OpenAI 兼容接口，长期可用），替代 Moonshot WebClient
+                String content = paperChatModel.chat(prompt);
+                if (content == null || content.isEmpty()) {
                     throw new RuntimeException("调用成功！但是没有返回结果！！");
                 }
+                content = stripJsonFence(content);
+                log.debug("调用AI返回的结果为：{}", content);
                 return content;
             }catch (Exception e){
                 //打印信息
-                log.debug("第{}次尝试调用失败了！",i);
+                log.debug("第{}次尝试调用失败了！",i, e);
                 Thread.sleep(1000);
-//                第几次尝试 i 次！
                 if(i == maxTry){
-                    e.printStackTrace();
+                    log.error("已经重试3次！依然失败！原因：{}", e.getMessage());
                     throw new RuntimeException("已经重试3次！依然失败！请稍后再试！！");
                 }
             }
         }
         throw new RuntimeException("已经重试3次！依然失败！请稍后再试！！");
+    }
+
+    /**
+     * 剥离模型返回的 ```json ... ``` 围栏，保证后续 JSON 解析稳定
+     */
+    private String stripJsonFence(String content) {
+        int startIndex = content.indexOf("```json");
+        int endIndex = content.lastIndexOf("```");
+        if (startIndex != -1 && endIndex != -1 && startIndex < endIndex) {
+            return content.substring(startIndex + 7, endIndex).trim();
+        }
+        return content.trim();
     }
 
 
