@@ -54,6 +54,13 @@ edu-ai-path-master/
 - **前端**：`views/Analysis.vue`（概览统计卡 + echarts 折线/柱状/雷达 + AI 建议按钮，`el-empty` 空态）、`api/analysis.js`、`router` 加 `/analysis`（requiresAuth）。`npm run build` 通过。
 - 后端重启需带 `DASHSCOPE_API_KEY`（`cmd /c set KEY=... && mvn spring-boot:run`）。
 
+### AI 解析题目（消耗积分/免费额度，已开发并验证）
+- **能力**：企业真题详情页（`InterviewQuestionDetail.vue`）新增「AI 解析本题」按钮 → 后端 `POST /api/interview-questions/{id}/ai-analysis`（需登录）调 Kimi（复用 `MockInterviewAiService.explainQuestion`）生成题目讲解（考点/答案/易错点/追问视角，约 600 字 Markdown）。
+- **计费**：每道题 5 积分，**每天 3 次免费额度**（当日 0 点重置，按 `credit_record` type=`ai-analysis` 且 change_amount=0 的当日记录数计）。先调 LLM 成功后计费（失败不扣）；免费用尽后走 `UPDATE user_credit SET active_credits=active_credits-5`（条件 `active_credits>=5` 防并发超扣，**不减 total_credits**，total 为累计获得排行）。积分不足返回 `code 4002`，前端弹确认框引导去 `/pay` 购买。
+- **流水**：免费记 `change_amount=0`、扣费记 `-5`，source 分别为「AI解析免费额度」/「AI题目解析」，type 统一 `ai-analysis`。
+- **落地文件**：`InterviewQuestionServiceImpl.aiAnalysis`、`MockInterviewAiServiceImpl.explainQuestion`、前端 `aiAnalysisQuestion()` + 详情页解析卡片（结果 `white-space:pre-wrap` 展示，无缓存、不渲染 Markdown）。
+- **已实测**：未登录 401；免费 3 次（free=true 积分不变）→ 第 4 次扣费（free=false、active 100→95）、credit_record 落账、Kimi 真实 1000 字解析。前端 build 通过。浏览器 UI 点击流程待用户确认。
+
 ### 支付宝沙箱支付（购买邀请码，已开发）
 - **能力**：前端「购买邀请码」页（`/pay`，Home 导航「购买邀请码」按钮 + 激活页购买按钮）选三档商品（ordinary 9.9 / vip 29.9 / enterprise 99.9）→ 后端 `POST /api/pay/create` 用 SDK `pageExecute` 生成支付宝电脑网站支付 form → 新窗口提交 → 沙箱买家付款 → 回跳 `/pay/result`（`PayResult.vue` 轮询 `/api/pay/order/status`）。**购买即自动激活**：`PayOrderServiceImpl.settle` 幂等结算（status='CREATED' 条件下 update），生成 `EDU+uuid8` 邀请码（invite_code 置 used、activedBy=买家）并发放积分（enterprise=300 其余=100，credit_record type='invite'）。
 - **落库**：`pay_order` 表（orderNo P+时间戳、productType、amount、status CREATED/PAID/FAILED/CLOSED、tradeNo、payTime、createTime、updateTime、userId）+ user_credit/credit_record/invite_code。已追加 scripts/init.sql 末尾。
