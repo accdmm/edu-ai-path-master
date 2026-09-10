@@ -10,12 +10,15 @@
         <el-button type="primary" @click="goToExam" icon="Document">考试入口</el-button>
         <el-button @click="goToRanking" icon="Trophy">考试排行榜</el-button>
         <el-button type="warning" @click="goToChat" icon="Cpu">AI 客服</el-button>
+        <el-button @click="goToInterviewQuestions" icon="Tickets">企业真题</el-button>
         <el-button v-if="userStore.token" @click="goToMyPapers" icon="Document">我的AI试卷</el-button>
+        <el-button v-if="userStore.token" type="success" @click="goToPay" icon="Wallet">购买邀请码</el-button>
         <template v-if="userStore.token">
           <el-dropdown @command="handleUserCommand">
             <el-button icon="User">{{ userStore.userInfo?.username || '用户' }}</el-button>
             <template #dropdown>
               <el-dropdown-menu>
+                <el-dropdown-item disabled><span class="credit-item">当前积分：<b>{{ activeCredits }}</b></span></el-dropdown-item>
                 <el-dropdown-item command="logout">退出登录</el-dropdown-item>
               </el-dropdown-menu>
             </template>
@@ -238,9 +241,12 @@ import {
 } from '@element-plus/icons-vue'
 import request from '../utils/request'
 import { useUserStore } from '@/stores/user'
+import { getActiveCredit } from '@/api/user'
 
 const router = useRouter()
 const userStore = useUserStore()
+
+const activeCredits = ref(0)
 
 // 轮播图数据（示例数据）
 const bannerList = ref([])
@@ -537,8 +543,17 @@ const goToLogin = () => {
   router.push('/login')
 }
 
+const goToPay = () => {
+  if (userStore.token) {
+    router.push('/pay')
+  } else {
+    router.push({ path: '/login', query: { redirect: '/pay' } })
+  }
+}
+
 const handleUserCommand = (command) => {
   if (command === 'logout') {
+    activeCredits.value = 0
     userStore.logout()
     ElMessage.success('已退出登录')
     router.push('/home')
@@ -589,13 +604,36 @@ onMounted(() => {
   getNoticeList()
   getPopularQuestions()
   getStats()
+  loadActiveCredits()
 })
+
+const loadActiveCredits = async () => {
+  const userId = userStore.userInfo?.userId
+  if (!userStore.token || !userId) {
+    activeCredits.value = 0
+    return
+  }
+  try {
+    const res = await getActiveCredit(userId)
+    activeCredits.value = res.data?.activeCredits || 0
+  } catch (e) {
+    activeCredits.value = 0
+  }
+}
 </script>
 
 <style scoped>
 .home-page {
   min-height: 100vh;
   background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);  /* 小清新渐变：薄荷绿到淡粉色 */
+}
+
+.credit-item {
+  color: #303133;
+}
+
+.credit-item b {
+  color: #f56c6c;
 }
 
 /* 导航栏样式 */

@@ -54,6 +54,16 @@ edu-ai-path-master/
 - **前端**：`views/Analysis.vue`（概览统计卡 + echarts 折线/柱状/雷达 + AI 建议按钮，`el-empty` 空态）、`api/analysis.js`、`router` 加 `/analysis`（requiresAuth）。`npm run build` 通过。
 - 后端重启需带 `DASHSCOPE_API_KEY`（`cmd /c set KEY=... && mvn spring-boot:run`）。
 
+### 支付宝沙箱支付（购买邀请码，已开发）
+- **能力**：前端「购买邀请码」页（`/pay`，Home 导航「购买邀请码」按钮 + 激活页购买按钮）选三档商品（ordinary 9.9 / vip 29.9 / enterprise 99.9）→ 后端 `POST /api/pay/create` 用 SDK `pageExecute` 生成支付宝电脑网站支付 form → 新窗口提交 → 沙箱买家付款 → 回跳 `/pay/result`（`PayResult.vue` 轮询 `/api/pay/order/status`）。**购买即自动激活**：`PayOrderServiceImpl.settle` 幂等结算（status='CREATED' 条件下 update），生成 `EDU+uuid8` 邀请码（invite_code 置 used、activedBy=买家）并发放积分（enterprise=300 其余=100，credit_record type='invite'）。
+- **落库**：`pay_order` 表（orderNo P+时间戳、productType、amount、status CREATED/PAID/FAILED/CLOSED、tradeNo、payTime、createTime、updateTime、userId）+ user_credit/credit_record/invite_code。已追加 scripts/init.sql 末尾。
+- **接口**：`/api/pay/create`、`/api/pay/order/status`（对 CREATED 订单调 `alipay.trade.query` 确认 TRADE_SUCCESS 自动结算，解决本地无公网 notify 收不到的兜底）、`/api/pay/orders`（我的订单）、`/api/pay/alipay/notify`（异步回调，SecurityConfig 放行，接口级 RSA2 验签；未验证因为本地无公网）。`/api/pay/**` 其余需认证。
+- **配置**（application.yml `alipay` 节点）：沙箱 `app-id=9021000167699600`、`alipay-public-key`（**平台固定公钥，已写死**）、**商户应用私钥用环境变量 `ALIPAY_PRIVATE_KEY` 注入（PKCS8 DER base64 单行，不落 git）**。私钥对应「应用公钥」须在开放平台沙箱应用→密钥 页粘贴，两者必须成对，否则支付宝报 `invalid-signature`（此事已踩坑：给错密钥对会验签失败）。
+- **SDK**：pom 依赖 `com.alipay.sdk:alipay-sdk-java:4.40.989.ALL`（alimaven 无 4.38.x，别用旧版本号）。`AlipayConfig` 提供 AlipayClient bean。
+- **前端**：`api/pay.js`（createPayOrder/payOrderStatus/myPayOrders）、`views/Pay.vue`（商品卡 + 我的订单 dialog；同步先 `window.open('', '_blank')` 拿句柄防弹窗拦截，await 后向句柄 `document.write(form)`；3s 后原窗口跳 `/pay/result`）、`views/PayResult.vue`（2s×15 轮询）、router `/pay`、`/pay/result`（requiresAuth）。
+- **小坑**：3001 曾被旧 vite 进程（9 天前启动的陈旧代码）占用且仅绑 `::1`，需杀陈旧 node 进程再起 dev；前端 build 有 chunk>500k 警告（非错误）。
+- **状态**：create 接口已 python 验证（返回完整 form + sign）；沙箱收银台打开（=平台应用公钥与本地私钥成对验证通过）与付款闭环待浏览器确认。
+
 ### 数据库
 - `scripts/init.sql` 已执行（MySQL 8.0，库 `exam_system_0625`，账号 root/root）：**16 张核心表 + 11 张商业化闭环表 = 27 张表** + 种子数据。
   - 默认用户：admin/teacher/student，密码均 123456（BCrypt）。

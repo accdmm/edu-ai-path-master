@@ -37,3 +37,10 @@ export function checkAdmin(userId) {
         method: 'get'
     })
 }
+
+export function getActiveCredit(userId) {
+    return request({
+        url: `/api/user-interview-credits/active/${userId}`,
+        method: 'get'
+    })
+}

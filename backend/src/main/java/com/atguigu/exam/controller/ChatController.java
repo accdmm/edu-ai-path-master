@@ -121,9 +121,9 @@ public class ChatController {
      */
     private String parseTopic(String content) {
         // 优先提取"XX的试卷"或"一套XX"中的主题
-        Matcher m1 = Pattern.compile("(?:生成|出|来)[一套]?([^，。！？,.]+?)[的]?(?:试卷|测试题|练习题|题)").matcher(content);
+        Matcher m1 = Pattern.compile("(?:生成|出|来)(?:一套|套)?([^，。！？,.]+?)[的]?(?:试卷|测试题|练习题|题)").matcher(content);
         if (m1.find()) {
-            String topic = m1.group(1).trim();
+            String topic = sanitizeTopic(m1.group(1));
             if (!topic.isEmpty() && topic.length() <= 30) {
                 return topic;
             }
@@ -131,10 +131,21 @@ public class ChatController {
         // 去掉常见动词后取合理长度片段
         String cleaned = content.replaceAll("(帮我|请|麻烦|生成|出|给|来|一套)", "").trim();
         cleaned = cleaned.replaceAll("[，。！？,.：:;；]", "").trim();
+        cleaned = sanitizeTopic(cleaned);
         if (!cleaned.isEmpty() && cleaned.length() <= 30) {
             return cleaned;
         }
         return cleaned.length() > 30 ? cleaned.substring(0, 30) : "Java 基础";
+    }
+
+    /**
+     * 清洗主题中的 Markdown 标记与多余空白，避免 **、反引号等残留拼进试卷名
+     */
+    private String sanitizeTopic(String raw) {
+        if (raw == null) {
+            return "";
+        }
+        return raw.replaceAll("[*_#`~]+", "").replaceAll("\\s+", " ").trim();
     }
 
     /**

@@ -17,9 +17,9 @@ request.interceptors.request.use(
     if (userStore.token) {
       config.headers.Authorization = `Bearer ${userStore.token}`
     }
-    // 为聊天接口设置更长的超时时间
+    // 为聊天接口设置更长的超时时间（后端 DashScope 模型 timeout=8min，AI 生成试卷链路可能超 60s）
     if (config.url && config.url.includes('/chat')) {
-      config.timeout = 60000
+      config.timeout = 480000
     }
     // 交卷接口包含同步 AI 判卷，放宽超时防止前端先于后端返回而误报
     if (config.url && config.url.includes('/submit')) {

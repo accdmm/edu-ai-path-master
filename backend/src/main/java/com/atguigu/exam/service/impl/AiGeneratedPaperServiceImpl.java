@@ -211,7 +211,11 @@ public class AiGeneratedPaperServiceImpl implements AiGeneratedPaperService {
 
     private String buildPaperName(String topic) {
         SimpleDateFormat sdf = new SimpleDateFormat("MMddHHmm");
-        return "AI卷-" + topic + "-" + sdf.format(new Date());
+        String clean = topic == null ? "" : topic.replaceAll("[*_#`~]+", "").replaceAll("\\s+", " ").trim();
+        if (clean.isEmpty()) {
+            clean = "AI 试卷";
+        }
+        return "AI卷-" + clean + "-" + sdf.format(new Date());
     }
 
     private String difficultyText(String difficulty) {

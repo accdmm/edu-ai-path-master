@@ -71,13 +71,11 @@ pinecone:
   region: us-east-1
 
 # 支付宝开放平台配置（沙箱环境）
-# app-id 非敏感可直接写死；私钥/支付宝公钥建议用环境变量注入（与 DASHSCOPE_API_KEY 相同方式）：
-#   set ALIPAY_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n....\n-----END PRIVATE KEY-----"
-#   set ALIPAY_PUBLIC_KEY=xxx   （沙箱应用的「支付宝公钥」）
+# app-id / 支付宝公钥 非敏感直接写死；商户应用私钥用环境变量注入：set ALIPAY_PRIVATE_KEY=<PKCS8 DER base64 单行>
 alipay:
   app-id: 9021000167699600
   private-key: ${ALIPAY_PRIVATE_KEY:}
-  alipay-public-key: ${ALIPAY_PUBLIC_KEY:}
+  alipay-public-key: MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAlvS0Yt3qjNE29wGxYZWUkzr+lIU1ok2bgAa9BmORmzWPWGySX49K25M6T18wxzKx47qzajzhnYF0dzhr5qk8OiS23AlXLNPxBHlKvJ7GZhGXW4QvLnYggFKhpWTH7eep27G/By9XylAiz6UovNUPyJFGx/U3F0bNJAyAB5QTKpCFok+VNaaz577+Q64tfjMh3RhlqHc3j13LSFMVr80cAKyeUZkZsdKB+IbgeRm264v4mmOAoz5y6lLLiP956+yrla7CfEbKsHEMOP5f7uWvgMjV0nTEQaHvIC1WgqiZC8LEyaaP4yaZfQGcvUu9DWh4zLaei9sqQewGEigXTjAiNwIDAQAB
   gateway: https://openapi-sandbox.dl.alipaydev.com/gateway.do
   notify-url: ""
   return-url: http://localhost:3001/pay/result
