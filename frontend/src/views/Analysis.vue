@@ -3,6 +3,9 @@
     <div class="page-header">
       <h1>📊 AI 学习分析</h1>
       <p>智能学习报告 · 能力雷达图 · 个性化学习建议</p>
+      <el-button type="primary" plain class="path-entry-btn" @click="goLearningPath">
+        生成我的学习路径 →
+      </el-button>
     </div>
 
     <div v-if="loading" class="loading-container">
@@ -108,8 +111,12 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Loading, Trophy, TrendCharts, Edit, CircleCheck, Cpu, Microphone } from '@element-plus/icons-vue'
+
+const router = useRouter()
+const goLearningPath = () => router.push('/learning-path')
 import * as echarts from 'echarts'
 import { getLearningReport, getAiSuggest } from '@/api/analysis'
 
@@ -312,6 +319,9 @@ function formatDate(dateStr) {
     margin: 0;
     color: #909399;
     font-size: 14px;
+  }
+  .path-entry-btn {
+    margin-top: 14px;
   }
 }
 

@@ -50,6 +50,12 @@ const routes = [
     meta: { title: 'AI 学习分析', requiresAuth: true }
   },
   {
+    path: '/learning-path',
+    name: 'LearningPath',
+    component: () => import('../views/LearningPath.vue'),
+    meta: { title: 'AI 学习路径', requiresAuth: true }
+  },
+  {
     path: '/admin',
     name: 'AdminLayout',
     component: () => import('../views/AdminLayout.vue'),

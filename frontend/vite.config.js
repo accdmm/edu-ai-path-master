@@ -11,6 +11,7 @@ export default defineConfig({
     }
   },
   server: {
+    host: true, // 绑定 0.0.0.0，IPv4/IPv6 均可访问（避免 localhost 解析差异导致连不上）
     port: 3001, // 前端服务端口
     //现在配置的绝对地址，不走代理！后台处理跨域
     proxy: {

@@ -655,3 +655,39 @@ CREATE TABLE pay_order (
   KEY idx_user (user_id),
   KEY idx_status (status)
 ) ENGINE = InnoDB COMMENT = '支付宝沙箱支付订单（购买邀请码）';
+
+-- ----------------------------------------
+-- AI 学习路径（结构化可执行任务清单）
+-- ----------------------------------------
+DROP TABLE IF EXISTS learning_path;
+CREATE TABLE learning_path (
+  id             BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键',
+  user_id        BIGINT       NOT NULL COMMENT '归属用户ID',
+  status         VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE' COMMENT '状态：ACTIVE/OUTDATED/COMPLETED',
+  diagnosis_json TEXT         COMMENT '诊断快照JSON：[{categoryName,answerCount,earnedScore,maxScore,correctRate}]',
+  summary        TEXT         COMMENT 'AI 规划总结',
+  node_count     INT          DEFAULT 0 COMMENT '节点总数',
+  create_time    DATETIME     DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  update_time    DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '修改时间',
+  PRIMARY KEY (id),
+  KEY idx_user_status (user_id, status)
+) ENGINE = InnoDB COMMENT = 'AI 学习路径';
+
+DROP TABLE IF EXISTS learning_path_node;
+CREATE TABLE learning_path_node (
+  id           BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键',
+  path_id      BIGINT       NOT NULL COMMENT '路径ID',
+  phase        INT          NOT NULL DEFAULT 1 COMMENT '阶段序号（从1开始）',
+  phase_title  VARCHAR(100) DEFAULT NULL COMMENT '阶段标题',
+  sort_order   INT          NOT NULL DEFAULT 0 COMMENT '节点在路径内的全局顺序',
+  node_type    VARCHAR(20)  NOT NULL COMMENT '节点类型：KNOWLEDGE/PAPER/QUESTION',
+  ref_id       BIGINT       DEFAULT NULL COMMENT '关联实体ID：PAPER=paper.id / QUESTION=interview_question.id / KNOWLEDGE=NULL',
+  category_name VARCHAR(100) DEFAULT NULL COMMENT '关联知识点分类名（KNOWLEDGE 必填）',
+  title        VARCHAR(200) NOT NULL COMMENT '节点标题',
+  description  TEXT         COMMENT '节点描述/讲解文本/完成指引',
+  status       VARCHAR(20)  NOT NULL DEFAULT 'PENDING' COMMENT '完成状态：PENDING/COMPLETED',
+  create_time  DATETIME     DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  update_time  DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '修改时间',
+  PRIMARY KEY (id),
+  KEY idx_path (path_id)
+) ENGINE = InnoDB COMMENT = 'AI 学习路径节点';

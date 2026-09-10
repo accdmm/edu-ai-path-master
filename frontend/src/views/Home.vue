@@ -132,6 +132,11 @@
             <h3>AI分析</h3>
             <p>智能学习报告，能力雷达图，个性化学习建议</p>
           </div>
+          <div class="action-card" @click="goToLearningPath">
+            <el-icon class="card-path-icon"><Guide /></el-icon>
+            <h3>学习路径</h3>
+            <p>AI 诊断薄弱知识点，规划分阶段可执行学习路径</p>
+          </div>
           <div class="action-card" @click="goToVideos">
             <el-icon class="card-icon video-icon"><VideoPlay /></el-icon>
             <h3>视频百科</h3>
@@ -236,8 +241,8 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { 
-  Search, Document, Edit, Trophy, Bell, DataAnalysis, View, Check, User, Files, TrendCharts, VideoPlay, ChatDotRound, Microphone, Cpu
+import {
+  Search, Document, Edit, Trophy, Bell, DataAnalysis, View, Check, User, Files, TrendCharts, VideoPlay, ChatDotRound, Microphone, Cpu, Guide
 } from '@element-plus/icons-vue'
 import request from '../utils/request'
 import { useUserStore } from '@/stores/user'
@@ -509,6 +514,14 @@ const goToRanking = () => {
 
 const goToAnalysis = () => {
   router.push('/analysis')
+}
+
+const goToLearningPath = () => {
+  if (userStore.token) {
+    router.push('/learning-path')
+  } else {
+    router.push({ path: '/login', query: { redirect: '/learning-path' } })
+  }
 }
 
 const goToVideos = () => {
@@ -911,6 +924,7 @@ const loadActiveCredits = async () => {
 .practice-icon { color: #ff6b6b; }
 .ranking-icon { color: #ffa500; }
 .analysis-icon { color: #51cf66; }
+.card-path-icon { color: #7952b3; }
 .video-icon { color: #ffa500; }
 .chat-icon { color: #4fc3f7; }
 .interview-icon { color: #ff6b6b; }
