@@ -195,14 +195,15 @@ public class AiGeneratedPaperServiceImpl implements AiGeneratedPaperService {
      * 根据 topic 复用或新建顶级分类
      */
     private Category getOrCreateCategory(String topic) {
+        String cleanTopic = cleanTopic(topic);
         LambdaQueryWrapper<Category> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Category::getName, topic);
+        wrapper.eq(Category::getName, cleanTopic);
         Category exist = categoryService.getOne(wrapper, false);
         if (exist != null && exist.getId() != null) {
             return exist;
         }
         Category category = new Category();
-        category.setName(topic);
+        category.setName(cleanTopic);
         category.setParentId(0L);
         category.setSort(99);
         categoryService.save(category);
@@ -211,11 +212,21 @@ public class AiGeneratedPaperServiceImpl implements AiGeneratedPaperService {
 
     private String buildPaperName(String topic) {
         SimpleDateFormat sdf = new SimpleDateFormat("MMddHHmm");
-        String clean = topic == null ? "" : topic.replaceAll("[*_#`~]+", "").replaceAll("\\s+", " ").trim();
+        String clean = cleanTopic(topic);
         if (clean.isEmpty()) {
             clean = "AI 试卷";
         }
         return "AI卷-" + clean + "-" + sdf.format(new Date());
+    }
+
+    /**
+     * 清洗主题文本：去除 markdown 强调符（**、_、#、`、~）并压缩空白
+     */
+    private String cleanTopic(String topic) {
+        if (topic == null) {
+            topic = "";
+        }
+        return topic.replaceAll("[*_#`~]+", "").replaceAll("\\s+", " ").trim();
     }
 
     private String difficultyText(String difficulty) {

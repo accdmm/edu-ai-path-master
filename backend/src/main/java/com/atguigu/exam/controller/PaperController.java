@@ -20,6 +20,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 试卷控制器 - 处理试卷管理相关的HTTP请求
@@ -143,6 +144,24 @@ public class PaperController {
             @Parameter(description = "新的状态，可选值：PUBLISHED/STOPPED") @RequestParam String status) {
         paperService.customUpdatePaperStatus(id,status);
         return Result.success(null, "状态更新成功");
+    }
+
+    /**
+     * AI 解析试卷内某道题（消费积分：每日 3 次免费，超出 5 积分/题）
+     */
+    @PostMapping("/{id}/ai-analysis")  // 处理POST请求
+    @Operation(summary = "AI解析试卷题目", description = "AI 实时解析试卷内某道题，消耗积分（每日3次免费，超出扣5积分）")  // API描述
+    public Result<Map<String, Object>> aiAnalysis(
+            @Parameter(description = "试卷ID") @PathVariable Long id,
+            @RequestBody Map<String, Long> body) {
+        if (!userContextUtil.isAuthenticated()) {
+            return Result.error(401, "请先登录");
+        }
+        Long questionId = body == null ? null : body.get("questionId");
+        if (questionId == null) {
+            return Result.error(400, "缺少参数 questionId");
+        }
+        return paperService.aiAnalysis(id, questionId, userContextUtil.getUserId());
     }
 
     /**

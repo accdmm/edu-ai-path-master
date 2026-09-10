@@ -39,4 +39,13 @@ public interface MockInterviewAiService {
      * @return 解析文本（Markdown），调用失败返回 null
      */
     String explainQuestion(String direction, String questionContent, String referenceAnswer);
+
+    /**
+     * AI 讲解一道试卷题目（消费积分），适配普通试题而非面试真题
+     *
+     * @param questionContent  题干
+     * @param referenceAnswer  参考答案（可为 null）
+     * @return 解析文本（Markdown），调用失败返回 null
+     */
+    String explainPaperQuestion(String questionContent, String referenceAnswer);
 }

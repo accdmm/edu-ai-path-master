@@ -132,7 +132,8 @@ public class LearningAnalysisServiceImpl implements LearningAnalysisService {
         }
 
         // 4. 知识点掌握度（按题目分类聚合分值得分率）
-        List<LearningReportVo.CategoryMasteryVo> masteryList = buildCategoryMastery(answerRecords);
+        Map<Long, Question> questionMap = buildQuestionMap(answerRecords);
+        List<LearningReportVo.CategoryMasteryVo> masteryList = buildCategoryMastery(answerRecords, questionMap);
         report.setCategoryMastery(masteryList);
         for (LearningReportVo.CategoryMasteryVo mastery : masteryList) {
             if (mastery.getAnswerCount() == 0) {
@@ -144,19 +145,8 @@ public class LearningAnalysisServiceImpl implements LearningAnalysisService {
             mastery.setCorrectRate(calRate(mastery.getEarnedScore(), mastery.getMaxScore()));
         }
 
-        // 5. 雷达图：知识点掌握度 Top6（按答题量排序），0-100
-        List<LearningReportVo.RadarItemVo> radarList = new ArrayList<>();
-        List<LearningReportVo.CategoryMasteryVo> top = masteryList.stream()
-                .sorted(Comparator.comparingInt(LearningReportVo.CategoryMasteryVo::getAnswerCount).reversed())
-                .limit(6)
-                .collect(Collectors.toList());
-        for (LearningReportVo.CategoryMasteryVo mastery : top) {
-            LearningReportVo.RadarItemVo radarItem = new LearningReportVo.RadarItemVo();
-            radarItem.setName(mastery.getCategoryName());
-            radarItem.setValue(mastery.getMaxScore() <= 0 ? 0 : mastery.getCorrectRate());
-            radarList.add(radarItem);
-        }
-        report.setRadar(radarList);
+        // 5. 能力雷达图：按题型聚合（选择题/判断题/简答题/整体作答），避免维度过少退化为直线
+        report.setRadar(buildTypeRadar(answerRecords, questionMap));
 
         // 6. AI 试卷数 + 模拟面试数
         List<UserPaper> userPapers = userPaperMapper.selectList(
@@ -207,20 +197,12 @@ public class LearningAnalysisServiceImpl implements LearningAnalysisService {
     /**
      * 按题目分类聚合答题得分率
      */
-    private List<LearningReportVo.CategoryMasteryVo> buildCategoryMastery(List<AnswerRecord> answerRecords) {
+    private List<LearningReportVo.CategoryMasteryVo> buildCategoryMastery(List<AnswerRecord> answerRecords,
+                                                                           Map<Long, Question> questionMap) {
         List<LearningReportVo.CategoryMasteryVo> result = new ArrayList<>();
-        if (answerRecords == null || answerRecords.isEmpty()) {
+        if (answerRecords == null || answerRecords.isEmpty() || questionMap.isEmpty()) {
             return result;
         }
-        Set<Long> questionIds = answerRecords.stream()
-                .map(AnswerRecord::getQuestionId).filter(Objects::nonNull)
-                .map(Long::valueOf).collect(Collectors.toSet());
-        if (questionIds.isEmpty()) {
-            return result;
-        }
-        List<Question> questions = questionMapper.selectBatchIds(questionIds);
-        Map<Long, Question> questionMap = questions.stream()
-                .collect(Collectors.toMap(Question::getId, q -> q, (a, b) -> a));
 
         Map<Long, Category> categoryCache = new HashMap<>();
         Map<String, LearningReportVo.CategoryMasteryVo> masteryMap = new LinkedHashMap<>();
@@ -242,7 +224,8 @@ public class LearningAnalysisServiceImpl implements LearningAnalysisService {
                 category = categoryId == 0L ? null : categoryMapper.selectById(categoryId);
                 categoryCache.put(categoryId, category);
             }
-            String categoryName = category != null && category.getName() != null ? category.getName() : "未分类";
+            String categoryName = normalizeName(
+                    category != null && category.getName() != null ? category.getName() : "未分类");
             LearningReportVo.CategoryMasteryVo mastery = masteryMap.computeIfAbsent(categoryName,
                     name -> {
                         LearningReportVo.CategoryMasteryVo item = new LearningReportVo.CategoryMasteryVo();
@@ -257,6 +240,90 @@ public class LearningAnalysisServiceImpl implements LearningAnalysisService {
         }
         result.addAll(masteryMap.values());
         return result;
+    }
+
+    /**
+     * 查询答题记录涉及的全部题目，构建题目ID -> 题目映射
+     */
+    private Map<Long, Question> buildQuestionMap(List<AnswerRecord> answerRecords) {
+        if (answerRecords == null || answerRecords.isEmpty()) {
+            return new HashMap<>();
+        }
+        Set<Long> questionIds = answerRecords.stream()
+                .map(AnswerRecord::getQuestionId).filter(Objects::nonNull)
+                .map(Long::valueOf).collect(Collectors.toSet());
+        if (questionIds.isEmpty()) {
+            return new HashMap<>();
+        }
+        return questionMapper.selectBatchIds(questionIds).stream()
+                .collect(Collectors.toMap(Question::getId, q -> q, (a, b) -> a));
+    }
+
+    /**
+     * 按题型聚合能力雷达数据：选择题/判断题/简答题 + 整体作答水平
+     * 题型维度保证雷达图多轴可成形状，未作答题型自动忽略
+     */
+    private List<LearningReportVo.RadarItemVo> buildTypeRadar(List<AnswerRecord> answerRecords,
+                                                              Map<Long, Question> questionMap) {
+        List<LearningReportVo.RadarItemVo> radarList = new ArrayList<>();
+        if (answerRecords == null || answerRecords.isEmpty() || questionMap.isEmpty()) {
+            return radarList;
+        }
+        String[] types = {"选择题", "判断题", "简答题"};
+        String[] typeCodes = {"CHOICE", "JUDGE", "TEXT"};
+        for (int i = 0; i < typeCodes.length; i++) {
+            int earned = 0;
+            int max = 0;
+            int count = 0;
+            for (AnswerRecord record : answerRecords) {
+                if (record.getQuestionId() == null) {
+                    continue;
+                }
+                Question question = questionMap.get(record.getQuestionId().longValue());
+                if (question == null || !typeCodes[i].equals(question.getType())) {
+                    continue;
+                }
+                count++;
+                earned += record.getScore() == null ? 0 : record.getScore();
+                max += question.getScore() == null ? 0 : question.getScore();
+            }
+            if (count == 0 || max <= 0) {
+                continue;
+            }
+            LearningReportVo.RadarItemVo radarItem = new LearningReportVo.RadarItemVo();
+            radarItem.setName(types[i]);
+            radarItem.setValue(calRate(earned, max));
+            radarList.add(radarItem);
+        }
+        // 整体作答维度：保证雷达至少两个轴
+        int earned = 0;
+        int max = 0;
+        for (AnswerRecord record : answerRecords) {
+            if (record.getQuestionId() == null) {
+                continue;
+            }
+            Question question = questionMap.get(record.getQuestionId().longValue());
+            if (question == null) {
+                continue;
+            }
+            earned += record.getScore() == null ? 0 : record.getScore();
+            max += question.getScore() == null ? 0 : question.getScore();
+        }
+        LearningReportVo.RadarItemVo overallItem = new LearningReportVo.RadarItemVo();
+        overallItem.setName("整体作答");
+        overallItem.setValue(calRate(earned, max));
+        radarList.add(overallItem);
+        return radarList;
+    }
+
+    /**
+     * 清洗展示文本：去除 markdown 强调符（**、_、#、`、~）并压缩空白，空值回退"未分类"
+     */
+    private String normalizeName(String name) {
+        if (name == null || name.trim().isEmpty()) {
+            return "未分类";
+        }
+        return name.replaceAll("[*_#`~]+", " ").replaceAll("\\s+", " ").trim();
     }
 
     /**

@@ -71,7 +71,7 @@ const startExam = (paperId) => {
 }
 
 const viewDetail = (paperId) => {
-  router.push(`/exam/start/${paperId}`)
+  router.push(`/paper/detail/${paperId}`)
 }
 
 onMounted(() => {

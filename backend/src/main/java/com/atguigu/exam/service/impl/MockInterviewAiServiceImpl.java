@@ -127,6 +127,24 @@ public class MockInterviewAiServiceImpl implements MockInterviewAiService {
         return (content == null || content.trim().isEmpty()) ? null : content.trim();
     }
 
+    @Override
+    public String explainPaperQuestion(String questionContent, String referenceAnswer) {
+        StringBuilder prompt = new StringBuilder();
+        prompt.append("你是一名经验丰富的技术讲师，正在给学生深入讲解一道练习题。\n\n");
+        prompt.append("【题目】\n").append(questionContent == null ? "" : questionContent).append("\n\n");
+        if (referenceAnswer != null && !referenceAnswer.isBlank()) {
+            prompt.append("【参考答案】\n").append(referenceAnswer).append("\n\n");
+        }
+        prompt.append("【讲解要求】\n");
+        prompt.append("1. 开门见山点出本题考察的核心知识点\n");
+        prompt.append("2. 结合底层原理给出清晰的解题思路与结论\n");
+        prompt.append("3. 指出常见错误或易踩的坑\n");
+        prompt.append("4. 补充一个举一反三的延伸思考\n");
+        prompt.append("5. 使用中文，控制在 500 字以内，层次清晰\n");
+        String content = safeCall(prompt.toString());
+        return (content == null || content.trim().isEmpty()) ? null : content.trim();
+    }
+
     private String safeCall(String prompt) {
         try {
             return kimiAiService.callKimiAi(prompt);

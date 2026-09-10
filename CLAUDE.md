@@ -61,6 +61,13 @@ edu-ai-path-master/
 - **落地文件**：`InterviewQuestionServiceImpl.aiAnalysis`、`MockInterviewAiServiceImpl.explainQuestion`、前端 `aiAnalysisQuestion()` + 详情页解析卡片（结果 `white-space:pre-wrap` 展示，无缓存、不渲染 Markdown）。
 - **已实测**：未登录 401；免费 3 次（free=true 积分不变）→ 第 4 次扣费（free=false、active 100→95）、credit_record 落账、Kimi 真实 1000 字解析。前端 build 通过。浏览器 UI 点击流程待用户确认。
 
+### AI 解析/改卷计费扩展（2026-09-10 第二轮，已开发并全链路验证）
+- **试卷详情「AI 解析本题」**：`PaperDetail.vue` 每题加「AI 解析本题」按钮 → 后端 `POST /api/papers/{id}/ai-analysis`（body `{questionId}`，需登录）→ `PaperService.aiAnalysis`（DRAFT 归属校验 + 校验题属于该卷）→ 复用新增 `MockInterviewAiService.explainPaperQuestion`（普通题目讲解 prompt，非面试视角）→ 计费。
+- **计费与真题共用免费池**：与企业真题**共用** `type='ai-analysis'` 每日 3 次免费（当日 change=0 计数），超出扣 5 积分（条件 `active_credits>=5`，不减 total），source 免费「AI解析免费额度」/付费「AI试题解析」，积分不足 `4002` 前端引导 `/pay`。返回 `{analysis, free, remainingFree, activeCredits}` 复用于 `PaperDetail` token。
+- **改卷 AI 计费（异步 worker 场景）**：`ExamServiceImpl.gradeExam` 在 `hasTextQuestion=true` 且判卷成功返回前调用 `billingAiGrading(examRecord.getUserId())`（userId 来自 `exam_record.user_id`，startExam 已写）：当日 `type='exam-ai-grade'` 且 change=0 计数 <3 → 免费；否则条件扣 5；**积分不足 → 免费兜底**（change=0，source「AI判卷免费(积分不足)」），**AI 判卷照常完成、交卷永不失败**。计费提示追加到评语末尾（如「本次 AI 判卷已消耗 5 积分」），`ExamResult.vue` 零改动自动展示。纯客观题卷与 worker 强制结算（无 LLM）路径不计费；`gradeExam` 幂等（已批阅提前返回）保证重投不重扣。
+- **落地文件**：`PaperService(Impl).aiAnalysis`、`PaperController /{id}/ai-analysis`、`MockInterviewAiService.explainPaperQuestion`、`ExamServiceImpl.billingAiGrading`（常量 AI_GRADING_COST=5/AI_GRADING_DAILY_FREE=3）、前端 `api/paper.js aiAnalyzePaperQuestion`、`PaperDetail.vue`。
+- **已实测（admin，DB/接口级别）**：paper7 判卷 60s → 评语「本次 AI 判卷使用免费额度」；第 2/3 份免费 → 第 4 份扣 -5（balance 90→85）；设 active=3 后第 5 份 → 「本次 AI 判卷因积分不足由平台赠送」+ credit_record change=0/balance=3；试卷 AI 解析（今日真题 3 次免费已用完）→ free=false 扣 5（95→90）、619 字 kimi 解析、remainingFree=0、credit_record 「AI试题解析」-5。测试后 admin 积分已恢复 85。浏览器 UI 未测（按钮点击/4002 弹窗）。
+
 ### 支付宝沙箱支付（购买邀请码，已开发）
 - **能力**：前端「购买邀请码」页（`/pay`，Home 导航「购买邀请码」按钮 + 激活页购买按钮）选三档商品（ordinary 9.9 / vip 29.9 / enterprise 99.9）→ 后端 `POST /api/pay/create` 用 SDK `pageExecute` 生成支付宝电脑网站支付 form → 新窗口提交 → 沙箱买家付款 → 回跳 `/pay/result`（`PayResult.vue` 轮询 `/api/pay/order/status`）。**购买即自动激活**：`PayOrderServiceImpl.settle` 幂等结算（status='CREATED' 条件下 update），生成 `EDU+uuid8` 邀请码（invite_code 置 used、activedBy=买家）并发放积分（enterprise=300 其余=100，credit_record type='invite'）。
 - **落库**：`pay_order` 表（orderNo P+时间戳、productType、amount、status CREATED/PAID/FAILED/CLOSED、tradeNo、payTime、createTime、updateTime、userId）+ user_credit/credit_record/invite_code。已追加 scripts/init.sql 末尾。
@@ -134,6 +141,14 @@ pinecone:
 - 未认证访问受保护接口 → `authenticationEntryPoint` 返回 `Result{code:401}` JSON（非默认 403）。
 - **私有资源业务级鉴权**（SecurityConfig permitAll 场景下在 service/controller 层强制）：`/api/papers/{id}`（DRAFT 卷仅归属用户，匿名传 -1L）、`/api/papers/my-ai-papers`（需登录）、`/api/exams/start`（DRAFT 卷归属校验 + 写 user_id）、`/api/analysis/**`（SecurityConfig authenticated）。`UserContextUtil` 提供 `isAuthenticated()`，切勿依赖 `getUserId()` 的 1L 回退判断登录态。
 - 管理端写接口暂未强制鉴权，后续可在前端全链路 token 化后收紧。
+
+## 5.1 UI 修复（2026-09-10）
+
+- **「我的 AI 试卷」详情死链已修复**：`MyPapers.viewDetail` 原本和 `startExam` 都跳 `/exam/start/{id}`。新增 `frontend/src/views/PaperDetail.vue`（路由 `/paper/detail/:id`，requiresAuth）展示卷面题目+选项（正确答案绿色高亮）+参考答案+解析，复用 `GET /api/papers/{id}`（`customPaperDetailById` 已带 questions.choices/answer，无需后端改动）。
+- **雷达图退化为直线已修复**：原因—答题只落在 1~2 个知识点分类，echarts 雷达 <3 轴就是一条线段。`LearningAnalysisServiceImpl` 雷达改按**题型**聚合（选择题/判断题/简答题 + 整体作答），保证 ≥4 轴成形状（`buildTypeRadar`），知识点掌握度仍由柱状图承载。已验证 admin：choice94/judge100/text0/overall70。
+- **分析页分类/卷名带 `*` 已修复**：根因—`AiGeneratedPaperServiceImpl.getOrCreateCategory` 把未清洗的 topic（含 `**` 与「套」前缀）直接存为分类名，存量 `C15=套 **JVM**`。修复：抽 `cleanTopic()`（去 markdown 符+压缩空白）供 `getOrCreateCategory`/`buildPaperName` 共用（后端防御）；`LearningAnalysisServiceImpl.normalizeName` 对展示名兜底清洗；DB 一次性 UPDATE 存量：C12`套Java集合框架测试`→`Java集合框架`、C13→`Java并发`、C14→`Java高并发`、C15→`JVM`，paper2/3 名 REPLACE 同步。
+- **注意**：PowerShell 控制台把中文显示成 `?` 是 GBK 渲染假象，DB/接口数据是正常 UTF-8，别被误导（用 HEX/python 验证）。
+- **后端当前 v18 运行中**：`DASHSCOPE_API_KEY` + `ALIPAY_PRIVATE_KEY` 完整值保存在 `C:\Users\34147\AppData\Local\Temp\opencode\launch_v18.ps1`（含 key，勿外发；重启时直接用它，别再手抄丢 key）。
 
 ## 6. 还需做（待办/阻塞项）
 

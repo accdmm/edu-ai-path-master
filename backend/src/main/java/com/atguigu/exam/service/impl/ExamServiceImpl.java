@@ -1,10 +1,14 @@
 package com.atguigu.exam.service.impl;
 
 import com.atguigu.exam.entity.AnswerRecord;
+import com.atguigu.exam.entity.CreditRecord;
 import com.atguigu.exam.entity.ExamRecord;
 import com.atguigu.exam.entity.Paper;
 import com.atguigu.exam.entity.Question;
+import com.atguigu.exam.entity.UserCredit;
+import com.atguigu.exam.mapper.CreditRecordMapper;
 import com.atguigu.exam.mapper.ExamRecordMapper;
+import com.atguigu.exam.mapper.UserCreditMapper;
 import com.atguigu.exam.service.AnswerRecordService;
 import com.atguigu.exam.service.ExamService;
 import com.atguigu.exam.service.KimiAiService;
@@ -16,6 +20,7 @@ import com.atguigu.exam.vo.GradingResult;
 import com.atguigu.exam.vo.StartExamVo;
 import com.atguigu.exam.vo.SubmitAnswerVo;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.bouncycastle.jcajce.provider.asymmetric.rsa.AlgorithmParametersSpi;
@@ -27,8 +32,10 @@ import org.springframework.util.ObjectUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -49,6 +56,12 @@ public class ExamServiceImpl extends ServiceImpl<ExamRecordMapper, ExamRecord> i
 
     /** Redis Stream：判卷任务队列 */
     private static final String GRADING_STREAM = "exam:grade";
+
+    /** 改卷 AI 计费：超出每日免费份数后每份扣积分 */
+    private static final int AI_GRADING_COST = 5;
+
+    /** 改卷 AI 每日免费份数 */
+    private static final int AI_GRADING_DAILY_FREE = 3;
 
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
@@ -71,6 +84,12 @@ public class ExamServiceImpl extends ServiceImpl<ExamRecordMapper, ExamRecord> i
 
     @Autowired
     private UserContextUtil userContextUtil;
+
+    @Autowired
+    private UserCreditMapper userCreditMapper;
+
+    @Autowired
+    private CreditRecordMapper creditRecordMapper;
 
     //开始考试
     @Override
@@ -289,12 +308,69 @@ public class ExamServiceImpl extends ServiceImpl<ExamRecordMapper, ExamRecord> i
             }
         }
 
+        //改卷 AI 计费：仅含简答题（触发过 LLM）的试卷才计费；失败不影响交卷；纯客观题卷从入口跳过
+        String billingNote = null;
+        if (hasTextQuestion) {
+            try {
+                billingNote = billingAiGrading(examRecord.getUserId());
+            } catch (Exception e) {
+                log.warn("AI 判卷计费失败，跳过计费。userId={} examRecordId={}", examRecord.getUserId(), examRecordId, e);
+            }
+        }
         examRecord.setScore(totalScore);
-        examRecord.setAnswers(summary);
+        examRecord.setAnswers(billingNote == null ? summary : summary + "\n" + billingNote);
         examRecord.setStatus("已批阅");
         updateById(examRecord);
 
         return examRecord;
+    }
+
+    /**
+     * 改卷 AI 计费：每日前 {@link #AI_GRADING_DAILY_FREE} 份免费，超出每份扣 {@link #AI_GRADING_COST} 积分；
+     * 积分不足时平台赠送（免费兜底），保证 AI 判卷照常完成、交卷永不失败。
+     *
+     * @param userId 被扣积分的用户（考试记录归属者）
+     * @return 追加到评语的计费提示文本
+     */
+    private String billingAiGrading(Long userId) {
+        Date todayStart = Date.from(LocalDateTime.now().toLocalDate()
+                .atStartOfDay(ZoneId.systemDefault()).toInstant());
+        long freeCount = creditRecordMapper.selectCount(new LambdaQueryWrapper<CreditRecord>()
+                .eq(CreditRecord::getUserId, userId)
+                .eq(CreditRecord::getType, "exam-ai-grade")
+                .eq(CreditRecord::getChangeAmount, 0)
+                .ge(CreditRecord::getCreateTime, todayStart));
+        boolean free = freeCount < AI_GRADING_DAILY_FREE;
+        if (free) {
+            insertGradingCreditRecord(userId, 0, "AI判卷免费额度");
+            return "本次 AI 判卷使用免费额度，不消耗积分";
+        }
+        int updated = userCreditMapper.update(null, new UpdateWrapper<UserCredit>()
+                .eq("user_id", userId)
+                .ge("active_credits", AI_GRADING_COST)
+                .setSql("active_credits = active_credits - " + AI_GRADING_COST)
+                .setSql("update_time = NOW()"));
+        if (updated == 0) {
+            // 积分不足：平台赠送（免费兜底）
+            insertGradingCreditRecord(userId, 0, "AI判卷免费(积分不足)");
+            return "本次 AI 判卷因积分不足由平台赠送，加油攒积分～";
+        }
+        insertGradingCreditRecord(userId, -AI_GRADING_COST, "AI判卷");
+        return "本次 AI 判卷已消耗 " + AI_GRADING_COST + " 积分";
+    }
+
+    private void insertGradingCreditRecord(Long userId, Integer change, String source) {
+        UserCredit latest = userCreditMapper.selectOne(
+                new LambdaQueryWrapper<UserCredit>().eq(UserCredit::getUserId, userId));
+        int balance = latest == null || latest.getActiveCredits() == null ? 0 : latest.getActiveCredits();
+        CreditRecord record = new CreditRecord();
+        record.setUserId(userId);
+        record.setChangeAmount(change);
+        record.setType("exam-ai-grade");
+        record.setSource(source);
+        record.setBalance(balance);
+        record.setCreateTime(new Date());
+        creditRecordMapper.insert(record);
     }
 
     @Override

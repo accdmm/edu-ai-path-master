@@ -46,3 +46,13 @@ export function getMyAiPapers() {
     method: 'get'
   })
 }
+
+// AI 解析试卷题目（消耗积分或免费额度）
+export function aiAnalyzePaperQuestion(paperId, questionId) {
+  return request({
+    url: `/api/papers/${paperId}/ai-analysis`,
+    method: 'post',
+    data: { questionId },
+    timeout: 120000
+  })
+}

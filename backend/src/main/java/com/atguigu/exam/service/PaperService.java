@@ -1,14 +1,27 @@
 package com.atguigu.exam.service;
 
+import com.atguigu.exam.common.Result;
 import com.atguigu.exam.entity.Paper;
 import com.atguigu.exam.vo.AiPaperVo;
 import com.atguigu.exam.vo.PaperVo;
 import com.baomidou.mybatisplus.extension.service.IService;
 
+import java.util.Map;
+
 /**
  * 试卷服务接口
  */
 public interface PaperService extends IService<Paper> {
+
+    /**
+     * AI 解析试卷内某道题（消费积分，每日 3 次免费，与企业真题共用类型 ai-analysis 额度）
+     *
+     * @param paperId    试卷id
+     * @param questionId 题目id
+     * @param userId     当前用户id
+     * @return {analysis, free, remainingFree, activeCredits}
+     */
+    Result<Map<String, Object>> aiAnalysis(Long paperId, Long questionId, Long userId);
 
     /**
      * 根据试卷id试卷详情

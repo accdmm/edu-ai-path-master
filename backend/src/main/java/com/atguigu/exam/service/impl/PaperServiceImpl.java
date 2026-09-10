@@ -1,13 +1,19 @@
 package com.atguigu.exam.service.impl;
 
 
+import com.atguigu.exam.common.Result;
+import com.atguigu.exam.entity.CreditRecord;
 import com.atguigu.exam.entity.ExamRecord;
 import com.atguigu.exam.entity.Paper;
 import com.atguigu.exam.entity.PaperQuestion;
 import com.atguigu.exam.entity.Question;
+import com.atguigu.exam.entity.UserCredit;
+import com.atguigu.exam.mapper.CreditRecordMapper;
 import com.atguigu.exam.mapper.ExamRecordMapper;
 import com.atguigu.exam.mapper.PaperMapper;
 import com.atguigu.exam.mapper.QuestionMapper;
+import com.atguigu.exam.mapper.UserCreditMapper;
+import com.atguigu.exam.service.MockInterviewAiService;
 import com.atguigu.exam.service.PaperQuestionService;
 import com.atguigu.exam.service.PaperService;
 import com.atguigu.exam.service.UserPaperService;
@@ -16,6 +22,7 @@ import com.atguigu.exam.vo.PaperVo;
 import com.atguigu.exam.vo.RuleVo;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
@@ -24,10 +31,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.ObjectUtils;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 
@@ -49,6 +61,15 @@ public class PaperServiceImpl extends ServiceImpl<PaperMapper, Paper> implements
 
     @Autowired
     private UserPaperService userPaperService;
+
+    @Autowired
+    private UserCreditMapper userCreditMapper;
+
+    @Autowired
+    private CreditRecordMapper creditRecordMapper;
+
+    @Autowired
+    private MockInterviewAiService mockInterviewAiService;
 
     /**
      * 根据试卷id试卷详情（带访问权限校验）
@@ -283,5 +304,95 @@ public class PaperServiceImpl extends ServiceImpl<PaperMapper, Paper> implements
             case "TEXT": return 3;
             default: return 4;
         }
+    }
+
+    private static final int AI_ANALYSIS_COST = 5;
+    private static final int AI_ANALYSIS_DAILY_FREE = 3;
+
+    @Override
+    public Result<Map<String, Object>> aiAnalysis(Long paperId, Long questionId, Long userId) {
+        try {
+            //1. 权限校验：DRAFT 私有卷仅归属用户，PUBLISHED 公开可查
+            Paper paper = getById(paperId);
+            if (paper == null) {
+                return Result.error(404, "试卷不存在");
+            }
+            if (!"PUBLISHED".equals(paper.getStatus())) {
+                if (!userPaperService.existRelation(userId, paperId)) {
+                    return Result.error(403, "该试卷为私有试卷，您无权访问！");
+                }
+            }
+            //2. 校验题目属于该卷并取参考答案
+            List<Question> questions = customPaperDetailById(paperId).getQuestions();
+            Question q = questions.stream()
+                    .filter(item -> item.getId() != null && item.getId().longValue() == questionId.longValue())
+                    .findFirst()
+                    .orElse(null);
+            if (q == null) {
+                return Result.error(404, "该试卷中不存在此题目");
+            }
+            String referenceAnswer = q.getAnswer() == null ? null : q.getAnswer().getAnswer();
+            //3. 先调 LLM，成功后再计费
+            String analysis = mockInterviewAiService.explainPaperQuestion(q.getTitle(), referenceAnswer);
+            if (analysis == null || analysis.isBlank()) {
+                return Result.error("AI 解析暂时繁忙，请稍后重试");
+            }
+            //4. 计费：每日 3 次免费（与企业真题共用 type=ai-analysis 额度），超出扣 5 积分
+            return chargeAiAnalysis(userId, analysis);
+        } catch (Exception e) {
+            log.error("AI 解析试卷题目失败 paperId={} questionId={} userId={}", paperId, questionId, userId, e);
+            return Result.error("AI 解析失败，请稍后重试");
+        }
+    }
+
+    private Result<Map<String, Object>> chargeAiAnalysis(Long userId, String analysis) {
+        UserCredit credit = userCreditMapper.selectOne(
+                new LambdaQueryWrapper<UserCredit>().eq(UserCredit::getUserId, userId));
+        if (credit == null) {
+            credit = new UserCredit();
+            credit.setUserId(userId);
+            credit.setTotalCredits(0);
+            credit.setActiveCredits(0);
+            credit.setCreateTime(new Date());
+            credit.setUpdateTime(new Date());
+            userCreditMapper.insert(credit);
+        }
+        Date todayStart = Date.from(LocalDateTime.now().toLocalDate()
+                .atStartOfDay(ZoneId.systemDefault()).toInstant());
+        long freeCount = creditRecordMapper.selectCount(new LambdaQueryWrapper<CreditRecord>()
+                .eq(CreditRecord::getUserId, userId)
+                .eq(CreditRecord::getType, "ai-analysis")
+                .eq(CreditRecord::getChangeAmount, 0)
+                .ge(CreditRecord::getCreateTime, todayStart));
+        boolean free = freeCount < AI_ANALYSIS_DAILY_FREE;
+        if (!free) {
+            int updated = userCreditMapper.update(null, new UpdateWrapper<UserCredit>()
+                    .eq("user_id", userId)
+                    .ge("active_credits", AI_ANALYSIS_COST)
+                    .setSql("active_credits = active_credits - " + AI_ANALYSIS_COST)
+                    .setSql("update_time = NOW()"));
+            if (updated == 0) {
+                return Result.error(4002, "积分不足，AI 解析每道题需 " + AI_ANALYSIS_COST
+                        + " 积分，可购买邀请码获取积分");
+            }
+        }
+        UserCredit latest = userCreditMapper.selectOne(
+                new LambdaQueryWrapper<UserCredit>().eq(UserCredit::getUserId, userId));
+        int balance = latest == null || latest.getActiveCredits() == null ? 0 : latest.getActiveCredits();
+        CreditRecord record = new CreditRecord();
+        record.setUserId(userId);
+        record.setChangeAmount(free ? 0 : -AI_ANALYSIS_COST);
+        record.setType("ai-analysis");
+        record.setSource(free ? "AI解析免费额度" : "AI试题解析");
+        record.setBalance(balance);
+        record.setCreateTime(new Date());
+        creditRecordMapper.insert(record);
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("analysis", analysis);
+        data.put("free", free);
+        data.put("remainingFree", Math.max(0, AI_ANALYSIS_DAILY_FREE - (int) freeCount - (free ? 1 : 0)));
+        data.put("activeCredits", balance);
+        return Result.success(data);
     }
 }

@@ -32,6 +32,12 @@ const routes = [
     meta: { title: '我的 AI 试卷', requiresAuth: true }
   },
   {
+    path: '/paper/detail/:id',
+    name: 'PaperDetail',
+    component: () => import('../views/PaperDetail.vue'),
+    meta: { title: '试卷详情', requiresAuth: true }
+  },
+  {
     path: '/home',
     name: 'Home',
     component: () => import('../views/Home.vue'),
