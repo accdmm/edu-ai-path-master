@@ -70,6 +70,15 @@ export function submitEvaluation(data) {
   })
 }
 
+// AI 解析本题（消耗积分或免费额度）
+export function aiAnalysisQuestion(id) {
+  return request({
+    url: `/api/interview-questions/${id}/ai-analysis`,
+    method: 'post',
+    timeout: 120000
+  })
+}
+
 // 收藏/取消收藏题目
 export function toggleFavorite(id, data) {
   return request({

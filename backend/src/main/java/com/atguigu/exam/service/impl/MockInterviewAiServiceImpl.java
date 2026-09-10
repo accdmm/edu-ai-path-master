@@ -108,6 +108,25 @@ public class MockInterviewAiServiceImpl implements MockInterviewAiService {
         return result;
     }
 
+    @Override
+    public String explainQuestion(String direction, String questionContent, String referenceAnswer) {
+        StringBuilder prompt = new StringBuilder();
+        prompt.append("你是一名经验丰富的").append(directionLabel(direction))
+                .append("技术讲师，正在给求职者深入讲解一道面试真题。\n\n");
+        prompt.append("【面试题】\n").append(questionContent).append("\n\n");
+        if (referenceAnswer != null && !referenceAnswer.isBlank()) {
+            prompt.append("【参考答案】\n").append(referenceAnswer).append("\n\n");
+        }
+        prompt.append("【讲解要求】\n");
+        prompt.append("1. 从考察点开始，说明这道题在面试中考察什么能力\n");
+        prompt.append("2. 结合底层原理给出详细的正确答案与推导过程\n");
+        prompt.append("3. 给出常见错误回答与易错点\n");
+        prompt.append("4. 补充一个面试追问角度，帮助应对面试官延伸提问\n");
+        prompt.append("5. 使用中文 Markdown，控制在 600 字以内，层次清晰\n");
+        String content = safeCall(prompt.toString());
+        return (content == null || content.trim().isEmpty()) ? null : content.trim();
+    }
+
     private String safeCall(String prompt) {
         try {
             return kimiAiService.callKimiAi(prompt);

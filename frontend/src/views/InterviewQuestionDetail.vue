@@ -16,6 +16,7 @@
           <div class="card-header">
             <span>题目信息</span>
             <div class="header-actions">
+              <el-button type="warning" :loading="aiAnalysisLoading" @click="handleAiAnalysis">AI 解析本题</el-button>
               <el-button type="primary" @click="handleStartPractice">开始练习</el-button>
               <el-button @click="handleToggleFavorite">
                 <i :class="isFavorited ? 'el-icon-star-on' : 'el-icon-star-off'"></i>
@@ -93,6 +94,25 @@
         </div>
       </el-card>
       
+      <!-- AI 题目解析 -->
+      <el-card class="ai-analysis-card">
+        <template #header>
+          <div class="card-header">
+            <span>AI 题目解析</span>
+            <el-tag size="small" :type="aiAnalysisTagType">
+              {{ aiAnalysisTagText }}
+            </el-tag>
+          </div>
+        </template>
+
+        <div v-if="aiAnalysisLoading" class="ai-analysis-loading">
+          <el-skeleton :rows="6" animated />
+          <div class="ai-analysis-hint">AI 正在讲解，约需 10~30 秒...</div>
+        </div>
+        <div v-else-if="aiAnalysisResult" class="ai-analysis-content">{{ aiAnalysisResult }}</div>
+        <el-empty v-else description="点击右上角「AI 解析本题」，让 AI 讲透这道题的考察点与底层原理" />
+      </el-card>
+
       <!-- 参考答案 -->
       <el-card class="answer-card" v-if="question.referenceAnswer">
         <template #header>
@@ -207,15 +227,16 @@
 </template>
 
 <script>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
   getInterviewQuestionDetail, 
   incrementViewCount,
   getRelatedQuestions,
   submitEvaluation,
-  toggleFavorite
+  toggleFavorite,
+  aiAnalysisQuestion
 } from '@/api/interviewQuestion'
 
 export default {
@@ -250,6 +271,52 @@ export default {
     
     // 相关题目
     const relatedQuestions = ref([])
+
+    // AI 解析
+    const aiAnalysisLoading = ref(false)
+    const aiAnalysisResult = ref('')
+    const aiAnalysisUsedFree = ref(false)
+    const aiAnalysisRemainingFree = ref(3)
+    const aiAnalysisCredits = ref(0)
+
+    const aiAnalysisTagType = computed(() => {
+      if (aiAnalysisLoading.value) return 'info'
+      if (aiAnalysisResult.value) return aiAnalysisUsedFree.value ? 'success' : 'warning'
+      return 'info'
+    })
+    const aiAnalysisTagText = computed(() => {
+      if (aiAnalysisLoading.value) return '解析中...'
+      if (aiAnalysisResult.value) {
+        return aiAnalysisUsedFree.value
+          ? `已用免费额度 · 今日剩余 ${aiAnalysisRemainingFree.value} 次`
+          : `本次消耗 5 积分 · 当前 ${aiAnalysisCredits.value} 积分`
+      }
+      return `今日免费 ${aiAnalysisRemainingFree.value} 次，超出后 5 积分/次`
+    })
+
+    const handleAiAnalysis = async () => {
+      if (aiAnalysisLoading.value) return
+      aiAnalysisLoading.value = true
+      try {
+        const res = await aiAnalysisQuestion(route.params.id)
+        aiAnalysisResult.value = res.data.analysis
+        aiAnalysisUsedFree.value = res.data.free
+        aiAnalysisRemainingFree.value = res.data.remainingFree
+        aiAnalysisCredits.value = res.data.activeCredits
+      } catch (error) {
+        if (error.message && error.message.includes('积分不足')) {
+          ElMessageBox.confirm(
+            '积分不足，每次 AI 解析需 5 积分。购买邀请码即可获得积分，是否现在去购买？',
+            '积分不足',
+            { confirmButtonText: '去购买', cancelButtonText: '取消', type: 'warning' }
+          )
+            .then(() => router.push('/pay'))
+            .catch(() => {})
+        }
+      } finally {
+        aiAnalysisLoading.value = false
+      }
+    }
     
     // 获取题目详情
     const fetchQuestionDetail = async () => {
@@ -396,6 +463,11 @@ export default {
       newEvaluation,
       evaluationRules,
       relatedQuestions,
+      aiAnalysisLoading,
+      aiAnalysisResult,
+      aiAnalysisTagType,
+      aiAnalysisTagText,
+      handleAiAnalysis,
       handleStartPractice,
       handleToggleFavorite,
       handleSubmitEvaluation,
@@ -482,6 +554,27 @@ export default {
   padding: 15px;
   background: #f8f9fa;
   border-radius: 6px;
+}
+
+.ai-analysis-content {
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  white-space: pre-wrap;
+  line-height: 1.8;
+  color: #303133;
+  font-size: 15px;
+}
+
+.ai-analysis-loading {
+  padding: 10px 0;
+}
+
+.ai-analysis-hint {
+  margin-top: 12px;
+  font-size: 12px;
+  color: #909399;
+  text-align: center;
 }
 
 .answer-text {

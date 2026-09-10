@@ -29,4 +29,14 @@ public interface MockInterviewAiService {
      * @return {summary:总结, strengths:[...], improvements:[...], abilityScores:{technicalAccuracy,clarity,logic,knowledge,experience}}
      */
     Map<String, Object> summarizeInterview(List<MockInterviewAnswerDetailVo> answers);
+
+    /**
+     * AI 讲解一道面试真题（消费积分）
+     *
+     * @param direction        技术方向
+     * @param questionContent  题目内容
+     * @param referenceAnswer  参考答案（可为 null）
+     * @return 解析文本（Markdown），调用失败返回 null
+     */
+    String explainQuestion(String direction, String questionContent, String referenceAnswer);
 }

@@ -1,21 +1,28 @@
 package com.atguigu.exam.service.impl;
 
 import com.atguigu.exam.common.Result;
+import com.atguigu.exam.entity.CreditRecord;
 import com.atguigu.exam.entity.InterviewCompany;
 import com.atguigu.exam.entity.InterviewFavorite;
 import com.atguigu.exam.entity.InterviewQuestion;
+import com.atguigu.exam.entity.UserCredit;
+import com.atguigu.exam.mapper.CreditRecordMapper;
 import com.atguigu.exam.mapper.InterviewCompanyMapper;
 import com.atguigu.exam.mapper.InterviewFavoriteMapper;
 import com.atguigu.exam.mapper.InterviewQuestionMapper;
+import com.atguigu.exam.mapper.UserCreditMapper;
 import com.atguigu.exam.service.InterviewQuestionService;
 import com.atguigu.exam.service.MockInterviewAiService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -35,7 +42,14 @@ public class InterviewQuestionServiceImpl implements InterviewQuestionService {
     @Autowired
     private InterviewFavoriteMapper favoriteMapper;
     @Autowired
+    private UserCreditMapper userCreditMapper;
+    @Autowired
+    private CreditRecordMapper creditRecordMapper;
+    @Autowired
     private MockInterviewAiService mockInterviewAiService;
+
+    private static final int AI_ANALYSIS_COST = 5;
+    private static final int AI_ANALYSIS_DAILY_FREE = 3;
 
     @Override
     public Result<IPage<Map<String, Object>>> getQuestionList(Long userId, Integer page, Integer size,
@@ -160,6 +174,82 @@ public class InterviewQuestionServiceImpl implements InterviewQuestionService {
         } catch (Exception e) {
             log.error("提交评测失败", e);
             return Result.error("提交评测失败");
+        }
+    }
+
+    @Override
+    public Result<Map<String, Object>> aiAnalysis(Long userId, Long questionId) {
+        try {
+            InterviewQuestion q = questionMapper.selectById(questionId);
+            if (q == null) {
+                return Result.error(404, "题目不存在");
+            }
+            if (userId == null) {
+                return Result.error(401, "请先登录");
+            }
+
+            // 先掉 LLM，成功后再计费，避免失败扣费
+            String analysis = mockInterviewAiService.explainQuestion(
+                    q.getDirection(), q.getQuestionContent(), q.getReferenceAnswer());
+            if (analysis == null || analysis.isBlank()) {
+                return Result.error("AI 解析暂时繁忙，请稍后重试");
+            }
+
+            UserCredit credit = userCreditMapper.selectOne(
+                    new LambdaQueryWrapper<UserCredit>().eq(UserCredit::getUserId, userId));
+            if (credit == null) {
+                credit = new UserCredit();
+                credit.setUserId(userId);
+                credit.setTotalCredits(0);
+                credit.setActiveCredits(0);
+                credit.setCreateTime(new Date());
+                credit.setUpdateTime(new Date());
+                userCreditMapper.insert(credit);
+            }
+
+            // 今日免费次数（changeAmount=0 表示免费额度）
+            Date todayStart = Date.from(LocalDateTime.now().toLocalDate().atStartOfDay(ZoneId.systemDefault()).toInstant());
+            long freeCount = creditRecordMapper.selectCount(new LambdaQueryWrapper<CreditRecord>()
+                    .eq(CreditRecord::getUserId, userId)
+                    .eq(CreditRecord::getType, "ai-analysis")
+                    .eq(CreditRecord::getChangeAmount, 0)
+                    .ge(CreditRecord::getCreateTime, todayStart));
+
+            boolean free = freeCount < AI_ANALYSIS_DAILY_FREE;
+            if (!free) {
+                // 非免费：条件扣费，active_credits >= 5 才生效，防并发超扣，total_credits 为累计获得不减
+                int updated = userCreditMapper.update(null, new UpdateWrapper<UserCredit>()
+                        .eq("user_id", userId)
+                        .ge("active_credits", AI_ANALYSIS_COST)
+                        .setSql("active_credits = active_credits - " + AI_ANALYSIS_COST)
+                        .setSql("update_time = NOW()"));
+                if (updated == 0) {
+                    return Result.error(4002, "积分不足，AI 解析每道题需 " + AI_ANALYSIS_COST + " 积分，可购买邀请码获取积分");
+                }
+            }
+
+            UserCredit latest = userCreditMapper.selectOne(
+                    new LambdaQueryWrapper<UserCredit>().eq(UserCredit::getUserId, userId));
+            int balance = latest == null || latest.getActiveCredits() == null ? 0 : latest.getActiveCredits();
+
+            CreditRecord record = new CreditRecord();
+            record.setUserId(userId);
+            record.setChangeAmount(free ? 0 : -AI_ANALYSIS_COST);
+            record.setType("ai-analysis");
+            record.setSource(free ? "AI解析免费额度" : "AI题目解析");
+            record.setBalance(balance);
+            record.setCreateTime(new Date());
+            creditRecordMapper.insert(record);
+
+            Map<String, Object> data = new HashMap<>();
+            data.put("analysis", analysis);
+            data.put("free", free);
+            data.put("remainingFree", Math.max(0, AI_ANALYSIS_DAILY_FREE - (int) (free ? freeCount + 1 : freeCount)));
+            data.put("activeCredits", balance);
+            return Result.success(data);
+        } catch (Exception e) {
+            log.error("AI 解析题目失败", e);
+            return Result.error("AI 解析失败，请稍后重试");
         }
     }
 

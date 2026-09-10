@@ -49,6 +49,11 @@ public interface InterviewQuestionService {
     Result<Map<String, Object>> submitEvaluation(Long userId, Long questionId, String userAnswer);
 
     /**
+     * AI 解析本题（消费 5 积分或消耗每日免费额度）
+     */
+    Result<Map<String, Object>> aiAnalysis(Long userId, Long questionId);
+
+    /**
      * 收藏 / 取消收藏
      */
     Result<Map<String, Object>> toggleFavorite(Long userId, Long questionId);

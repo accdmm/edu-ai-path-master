@@ -80,6 +80,15 @@ public class InterviewQuestionController {
         return interviewQuestionService.submitEvaluation(userContextUtil.getUserId(), questionId, userAnswer);
     }
 
+    @Operation(summary = "AI解析本题（消耗积分或免费额度）")
+    @PostMapping("/{id}/ai-analysis")
+    public Result<Map<String, Object>> aiAnalysis(@PathVariable Long id) {
+        if (!userContextUtil.isAuthenticated()) {
+            return Result.error(401, "请先登录");
+        }
+        return interviewQuestionService.aiAnalysis(userContextUtil.getUserId(), id);
+    }
+
     @Operation(summary = "收藏/取消收藏")
     @PostMapping("/{id}/favorite")
     public Result<Map<String, Object>> favorite(@PathVariable Long id) {
