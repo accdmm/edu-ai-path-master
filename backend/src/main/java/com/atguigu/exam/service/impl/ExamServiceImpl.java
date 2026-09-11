@@ -203,9 +203,16 @@ public class ExamServiceImpl extends ServiceImpl<ExamRecordMapper, ExamRecord> i
                     GRADING_STREAM,
                     Collections.singletonMap("examRecordId", String.valueOf(examRecordId)));
         } catch (Exception e) {
-            // Redis 不可用时降级为同步判卷，保证交卷功能不因队列故障失效
+            // Redis 不可用时降级为同步判卷，保证交卷功能不因队列故障失效；
+            // 同步判卷若仍有失败（如 AI 不可用），强制按已保存答题记录结算，避免状态卡死在"判卷中"
             log.warn("投递 Redis Stream 判卷任务失败，降级同步判卷。原因：{}", e.getMessage());
-            gradeExam(examRecordId);
+            try {
+                gradeExam(examRecordId);
+            } catch (Exception gradingEx) {
+                log.error("降级同步判卷失败，强制结算 examRecordId={} 原因: {}",
+                        examRecordId, gradingEx.getMessage());
+                forceSettleGrading(examRecordId);
+            }
         }
     }
 
@@ -248,6 +255,12 @@ public class ExamServiceImpl extends ServiceImpl<ExamRecordMapper, ExamRecord> i
                     try {
                         //1.先获取 答题记录对应的题目对象
                         Question question = questionMap.get(answerRecord.getQuestionId().longValue());
+                        //重跑幂等：上一轮已成功判分的简答题直接保留，只重判"判题过程出错"的题
+                        if ("TEXT".equalsIgnoreCase(question.getType())
+                                && answerRecord.getScore() != null
+                                && !"判题过程出错！".equals(answerRecord.getAiCorrection())) {
+                            return;
+                        }
                         String systemAnswer = question.getAnswer().getAnswer();
                         String userAnswer = answerRecord.getUserAnswer();
                         if ("JUDGE".equalsIgnoreCase(question.getType())){
@@ -283,6 +296,10 @@ public class ExamServiceImpl extends ServiceImpl<ExamRecordMapper, ExamRecord> i
                             }
                         }
                     } catch (Exception e) {
+                        //AI 判分失败：先落 0 分占位（评语标记"判题过程出错"），不直接定稿
+                        //gradeExam 会保持"判卷中"并抛异常，由判卷队列延迟重投重试
+                        log.warn("简答题 AI 判分失败 examRecordId={} questionId={} 原因: {}",
+                                examRecordId, answerRecord.getQuestionId(), e.getMessage());
                         answerRecord.setScore(0);
                         answerRecord.setIsCorrect(0);
                         answerRecord.setAiCorrection("判题过程出错！");
@@ -290,6 +307,21 @@ public class ExamServiceImpl extends ServiceImpl<ExamRecordMapper, ExamRecord> i
                 }, AI_GRADING_EXECUTOR))
                 .collect(Collectors.toList());
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+
+        answerRecordService.updateBatchById(answerRecords);
+
+        //统计 AI 判分失败的简答题：存在失败则保持"判卷中"并抛异常，交由判卷队列死信机制（5 分钟后）重投重判，
+        //重跑时仅重判失败的简答题；达到 worker 重试上限后按客观题强制结算。计费在结算处，重跑不会重复扣费。
+        int failedTextCount = (int) answerRecords.stream()
+                .filter(ar -> {
+                    Question q = questionMap.get(ar.getQuestionId().longValue());
+                    return q != null && "TEXT".equalsIgnoreCase(q.getType())
+                            && "判题过程出错！".equals(ar.getAiCorrection());
+                })
+                .count();
+        if (failedTextCount > 0) {
+            throw new RuntimeException(failedTextCount + " 道简答题 AI 判分失败，保持判卷中等待队列重试（客观题得分已保存）");
+        }
 
         //进行总分数与总正确题目数量统计
         int correctNumber = 0;
@@ -300,7 +332,7 @@ public class ExamServiceImpl extends ServiceImpl<ExamRecordMapper, ExamRecord> i
                 correctNumber++;
             }
         }
-        answerRecordService.updateBatchById(answerRecords);
+        //（答题记录已在失败检查前统一保存）
 
         //进行ai生成评价，进行考试记录修改和完善
         //无简答题的试卷不需要 AI 总评（客观题已本地判分），直接规则评语，秒级完成判卷
@@ -421,6 +453,30 @@ public class ExamServiceImpl extends ServiceImpl<ExamRecordMapper, ExamRecord> i
         return list(new LambdaQueryWrapper<ExamRecord>()
                 .eq(ExamRecord::getUserId, userId)
                 .orderByDesc(ExamRecord::getStartTime));
+    }
+
+    @Override
+    public int forceSettleGrading(Integer examRecordId) {
+        ExamRecord examRecord = getById(examRecordId);
+        if (examRecord == null) {
+            return 0;
+        }
+        if ("已批阅".equals(examRecord.getStatus())) {
+            return examRecord.getScore() == null ? 0 : examRecord.getScore();
+        }
+        // 按已保存的答题记录统计总分：客观题已判分，AI 失败的简答题为占位 0 分
+        List<AnswerRecord> saved = answerRecordService.list(
+                new LambdaQueryWrapper<AnswerRecord>().eq(AnswerRecord::getExamRecordId, examRecordId));
+        int forcedScore = saved == null ? 0 : saved.stream()
+                .filter(a -> a.getScore() != null)
+                .mapToInt(AnswerRecord::getScore)
+                .sum();
+        examRecord.setStatus("已批阅");
+        examRecord.setScore(forcedScore);
+        examRecord.setAnswers("AI 判卷多次重试仍失败，简答题暂按 0 分、成绩按客观题结算，建议稍后重考或联系老师复核。");
+        updateById(examRecord);
+        log.warn("AI 判卷强制结算 examRecordId={} forcedScore={}", examRecordId, forcedScore);
+        return forcedScore;
     }
 
 

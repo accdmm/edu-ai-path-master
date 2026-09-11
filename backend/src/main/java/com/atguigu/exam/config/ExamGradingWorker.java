@@ -125,14 +125,8 @@ public class ExamGradingWorker implements ApplicationRunner {
             log.error("AI 判卷失败 examRecordId={} 原因:{}", examRecordId, e.getMessage());
             Long n = stringRedisTemplate.opsForValue().increment(RETRY_PREFIX + examRecordId);
             if (n != null && n >= MAX_RETRY) {
-                // 多次失败：按客观题成绩强制结算，避免消息永久积压
-                ExamRecord cur = examService.getById(examRecordId);
-                if (cur != null && !"已批阅".equals(cur.getStatus())) {
-                    cur.setStatus("已批阅");
-                    cur.setScore(cur.getScore() == null ? 0 : cur.getScore());
-                    cur.setAnswers("AI 判卷多次失败，成绩仅按客观题结算，请在练习页针对薄弱知识点复习。");
-                    examService.updateById(cur);
-                }
+                // 多次失败：按已保存答题记录强制结算（客观题得分 + 失败简答题 0 分），避免消息永久积压
+                examService.forceSettleGrading(examRecordId);
                 stringRedisTemplate.delete(RETRY_PREFIX + examRecordId);
                 ack(record.getId());
             }

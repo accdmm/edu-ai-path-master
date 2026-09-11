@@ -59,5 +59,13 @@ public interface ExamService extends IService<ExamRecord> {
      * 查询当前用户的考试记录列表（按开始时间倒序）
      */
     List<ExamRecord> customGetMyRecords(Long userId);
+
+    /**
+     * 强制结算：按已保存的答题记录统计总分并置"已批阅"（失败简答题按占位 0 分计）。
+     * 用于 AI 判卷多次重试仍失败时的兜底，避免成绩永久卡在"判卷中"。
+     *
+     * @return 强制结算后的总分
+     */
+    int forceSettleGrading(Integer examRecordId);
 }
  
