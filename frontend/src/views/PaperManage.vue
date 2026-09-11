@@ -52,9 +52,9 @@
             {{ row.duration }} 分钟
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="250" fixed="right">
+        <el-table-column label="操作" width="300" fixed="right">
           <template #default="{ row }">
-            <el-button v-if="row.status === 'DRAFT' || row.status === '待发布'" size="small" type="success" @click="updateStatus(row, 'PUBLISHED')" :icon="CaretRight">发布</el-button>
+            <el-button v-if="row.status === 'DRAFT' || row.status === '待发布'" size="small" type="success" @click="updateStatus(row, 'PUBLISHED')" :icon="Promotion">发布</el-button>
             <el-button v-if="row.status === 'PUBLISHED'" size="small" type="warning" @click="updateStatus(row, 'DRAFT')" :icon="VideoPause">停止</el-button>
             <el-button size="small" type="primary" @click="editPaper(row)" :icon="Edit">编辑</el-button>
             <el-button size="small" type="danger" @click="deletePaper(row)" :icon="Delete">删除</el-button>
@@ -69,7 +69,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, CaretRight, Edit, Delete, VideoPause, Search } from '@element-plus/icons-vue'
+import { Plus, Promotion, Edit, Delete, VideoPause, Search } from '@element-plus/icons-vue'
 import { getPapers } from '../api/paper.js'
 import request from '../utils/request'
 

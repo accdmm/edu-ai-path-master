@@ -46,7 +46,7 @@
     </div>
 
     <!-- 企业列表 -->
-    <div class="company-list" v-loading="loading">
+    <div v-if="!questionsMode" class="company-list" v-loading="loading">
       <div 
         v-for="company in filteredCompanies" 
         :key="company.id"
@@ -55,7 +55,10 @@
         <!-- 企业头部 -->
         <div class="company-header" @click="toggleCompany(company)">
           <div class="company-info">
-            <img :src="company.logo || '/default-logo.png'" :alt="company.name" class="company-logo">
+            <div v-if="company.logo" class="company-logo-wrap">
+              <img :src="company.logo" :alt="company.name" class="company-logo" @error="company.logo = ''" />
+            </div>
+            <div v-else class="company-logo company-logo-fallback">{{ company.name.charAt(0) }}</div>
             <div class="company-details">
               <h3 class="company-name">{{ company.name }}</h3>
               <p class="company-desc">{{ company.description }}</p>
@@ -110,6 +113,35 @@
         </div>
     </div>
 
+    <!-- 真题列表（从企业分类进入） -->
+    <div v-else class="question-list" v-loading="loading">
+      <div class="question-list-header">
+        <el-button size="small" @click="backToCompanies" icon="Back">返回企业列表</el-button>
+        <span v-if="currentCompanyName" class="question-list-title">{{ currentCompanyName }}</span>
+      </div>
+      <div v-if="questionList.length === 0" class="empty-state">
+        <el-empty description="该分类下暂无真题" :image-size="120"></el-empty>
+      </div>
+      <div
+        v-for="q in questionList"
+        :key="q.id"
+        class="question-card"
+        @click="viewQuestionDetail(q.id)"
+      >
+        <div class="question-card-main">
+          <h4 class="question-card-title">{{ q.questionContent }}</h4>
+          <div class="question-card-meta">
+            <el-tag v-if="q.direction" size="small" type="info">{{ getTechLabel(q.direction) }}</el-tag>
+            <el-tag v-if="q.difficultyLevel" size="small" :type="getDifficultyType(q.difficultyLevel)">
+              {{ getDifficultyLabel(q.difficultyLevel) }}
+            </el-tag>
+            <span v-if="q.viewCount" class="question-card-views">{{ q.viewCount }}次浏览</span>
+          </div>
+        </div>
+        <el-icon class="question-card-arrow"><ArrowRight /></el-icon>
+      </div>
+    </div>
+
     <!-- 删除上传我的真题弹窗及表单 -->
     <!--
     <el-dialog v-model="showUploadDialog" title="上传我的真题" width="500px">
@@ -144,9 +176,11 @@
 </template>
 
 <script>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, ArrowDown, ArrowUp, ArrowRight } from '@element-plus/icons-vue'
+import { Search, ArrowDown, ArrowUp, ArrowRight, Back } from '@element-plus/icons-vue'
+import axios from 'axios'
 
 export default {
   name: 'InterviewQuestionList',
@@ -154,12 +188,19 @@ export default {
     Search,
     ArrowDown,
     ArrowUp,
-    ArrowRight
+    ArrowRight,
+    Back
   },
   setup() {
     // 响应式数据
     const loading = ref(false)
     const companyList = ref([])
+    const route = useRoute()
+    const router = useRouter()
+    // 真题列表模式（从企业分类进入）
+    const questionsMode = ref(false)
+    const questionList = ref([])
+    const currentCompanyName = ref('')
     
     // 动态生成今年及过去5年的年份选项
     const currentYear = new Date().getFullYear()
@@ -215,96 +256,97 @@ export default {
     const batchInputDialogVisible = ref(false)
     const batchInputText = ref('')
     
-    // 初始化企业数据（模拟数据）
-    const initCompanyData = () => {
-      companyList.value = [
-        {
-          id: 1,
-          name: '阿里巴巴',
-          logo: '/logos/alibaba.png',
-          description: '中国领先的电商和云计算公司',
-          totalQuestions: 25,
-          expanded: false,
-          questionSets: [
-            {
-              id: 1,
-              name: 'Java后端开发面试题',
-              direction: 'java',
-              difficulty: 'medium',
-              year: 2024,
-              round: 'first',
-              questionCount: 12
-            },
-            {
-              id: 2,
-              name: '前端开发面试题',
-              direction: 'frontend',
-              difficulty: 'medium',
-              year: 2024,
-              round: 'first',
-              questionCount: 8
-            },
-            {
-              id: 3,
-              name: '算法面试题',
-              direction: 'algorithm',
-              difficulty: 'hard',
-              year: 2024,
-              round: 'second',
-              questionCount: 5
-            }
-          ]
-        },
-        {
-          id: 2,
-          name: '字节跳动',
-          logo: '/logos/bytedance.png',
-          description: '全球领先的移动互联网公司',
-          totalQuestions: 18,
-          expanded: false,
-          questionSets: [
-            {
-              id: 4,
-              name: '算法工程师面试题',
-              direction: 'algorithm',
-              difficulty: 'hard',
-              year: 2024,
-              round: 'first',
-              questionCount: 15
-            },
-            {
-              id: 5,
-              name: '前端开发面试题',
-              direction: 'frontend',
-              difficulty: 'medium',
-              year: 2024,
-              round: 'first',
-              questionCount: 3
-            }
-          ]
-        },
-        {
-          id: 3,
-          name: '腾讯',
-          logo: '/logos/tencent.png',
-          description: '中国领先的互联网增值服务提供商',
-          totalQuestions: 10,
-          expanded: false,
-          questionSets: [
-            {
-              id: 6,
-              name: 'Java开发面试题',
-              direction: 'java',
-              difficulty: 'medium',
-              year: 2024,
-              round: 'first',
-              questionCount: 10
-            }
-          ]
+    // 加载企业及题集分类（真实数据）
+    const fetchCompanies = async () => {
+      loading.value = true
+      try {
+        const res = await axios.get('/api/companies/list', { params: { page: 1, size: 100 } })
+        const companies = res.data.code === 200 ? (res.data.data.records || []) : []
+        const list = []
+        for (const c of companies) {
+          const catRes = await axios.get('/api/company-question-categories/enabled', {
+            params: { companyId: c.id }
+          })
+          const sets = (catRes.data.code === 200 ? catRes.data.data : []) || []
+          list.push({
+            id: c.id,
+            name: c.name,
+            logo: c.logo || '',
+            description: c.description || '',
+            totalQuestions: c.totalQuestions || 0,
+            expanded: false,
+            questionSets: sets.map(cat => ({
+              id: cat.id,
+              name: cat.name,
+              direction: cat.direction || '',
+              difficulty: cat.difficulty || '',
+              year: cat.year || '',
+              questionCount: cat.questionCount || 0,
+              companyId: c.id
+            }))
+          })
         }
-      ]
+        companyList.value = list
+      } catch (e) {
+        console.error('加载企业数据失败:', e)
+        ElMessage.error('加载企业数据失败，请检查网络连接')
+      } finally {
+        loading.value = false
+      }
     }
-    
+
+    // 加载真题列表（按企业/方向/关键词筛选）
+    const fetchQuestions = async () => {
+      loading.value = true
+      try {
+        const params = { page: 1, size: 50, companyId: route.query.companyId || undefined }
+        if (route.query.direction) params.direction = route.query.direction
+        if (filters.keyword) params.keyword = filters.keyword
+        const res = await axios.get('/api/interview-questions/list', { params })
+        if (res.data.code === 200) {
+          questionList.value = res.data.data.records || []
+        } else {
+          ElMessage.error('加载真题失败：' + res.data.message)
+        }
+      } catch (e) {
+        console.error('加载真题失败:', e)
+        ElMessage.error('加载真题失败，请检查网络连接')
+      } finally {
+        loading.value = false
+      }
+    }
+
+    // 进入真题列表模式
+    const enterQuestionsMode = async () => {
+      questionsMode.value = true
+      await fetchQuestions()
+    }
+
+    // 返回企业列表模式
+    const backToCompanies = () => {
+      questionsMode.value = false
+      questionList.value = []
+      filters.keyword = ''
+      router.replace('/interview-questions')
+    }
+
+    // 查看某企业分类下的真题
+    const viewCategoryQuestions = (company, category) => {
+      currentCompanyName.value = `${company.name} · ${category.name}`
+      router.push({
+        path: '/interview-questions',
+        query: {
+          companyId: company.id,
+          direction: category.direction || ''
+        }
+      })
+    }
+
+    // 查看真题详情
+    const viewQuestionDetail = (id) => {
+      router.push(`/interview-questions/${id}`)
+    }
+
     // 计算过滤后的企业列表
     const filteredCompanies = computed(() => {
       return companyList.value.filter(company => {
@@ -368,7 +410,10 @@ export default {
     
     // 事件处理函数
     const handleFilterChange = () => {
-      // 筛选逻辑已通过计算属性实现
+      // 真题列表模式：关键词筛选重新请求
+      if (questionsMode.value) {
+        fetchQuestions()
+      }
     }
     
     const toggleCompany = (company) => {
@@ -415,11 +460,6 @@ export default {
     const showBatchUploadDialog = (company) => {
       currentCompany.value = company
       batchUploadDialogVisible.value = true
-    }
-    
-    const viewCategoryQuestions = (company, category) => {
-      // 跳转到题目详情页面
-      ElMessage.info(`查看 ${company.name} - ${category.name} 的题目`)
     }
     
     // 批量录入相关方法
@@ -525,10 +565,19 @@ export default {
       // 删除与上传相关的响应式数据、方法、import等
     }
     
-    // 生命周期
-    onMounted(() => {
-      initCompanyData()
-    })
+    // 生命周期：监听路由 query，企业列表模式 <-> 真题列表模式
+    // （点分类是同一路由 query 变化，组件复用，onMounted 不会重跑，必须用 watch）
+    watch(() => route.query.companyId, async (companyId) => {
+      if (companyId) {
+        questionsMode.value = true
+        await fetchQuestions()
+      } else {
+        questionsMode.value = false
+        questionList.value = []
+        filters.keyword = ''
+        await fetchCompanies()
+      }
+    }, { immediate: true })
     
     return {
       loading,
@@ -536,6 +585,9 @@ export default {
       yearOptions,
       filters,
       filteredCompanies,
+      questionsMode,
+      questionList,
+      currentCompanyName,
       addCompanyDialogVisible,
       addingCompany,
       companyFormRef,
@@ -554,6 +606,8 @@ export default {
       handleAddCompany,
       showBatchUploadDialog,
       viewCategoryQuestions,
+      viewQuestionDetail,
+      backToCompanies,
       addQuestion,
       removeQuestion,
       showBatchInputDialog,
@@ -665,6 +719,87 @@ export default {
   border-radius: 8px;
   margin-right: 16px;
   object-fit: cover;
+}
+
+.company-logo-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #1890ff;
+  color: #fff;
+  font-size: 20px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+/* 真题列表样式 */
+.question-list {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  padding: 16px 24px;
+}
+
+.question-list-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.question-list-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #262626;
+}
+
+.question-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.question-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border-color: #1890ff;
+}
+
+.question-card-main {
+  flex: 1;
+  min-width: 0;
+  margin-right: 12px;
+}
+
+.question-card-title {
+  margin: 0 0 8px 0;
+  font-size: 15px;
+  font-weight: 500;
+  color: #262626;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.question-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.question-card-views {
+  font-size: 12px;
+  color: #999;
+}
+
+.question-card-arrow {
+  color: #999;
+  flex-shrink: 0;
 }
 
 .company-details {

@@ -48,22 +48,22 @@
           </template>
         </el-table-column>
         <el-table-column prop="createdTime" label="创建时间" width="180"></el-table-column>
-        <el-table-column label="操作" width="280" fixed="right">
+        <el-table-column label="操作" width="300" fixed="right">
           <template #default="scope">
-            <el-button size="small" @click="viewCategory(scope.row)">查看</el-button>
+            <el-button size="small" @click="viewCategory(scope.row)" icon="View">查看</el-button>
             <el-button 
               size="small" 
               type="primary" 
-              @click="editCategory(scope.row)">编辑</el-button>
+              @click="editCategory(scope.row)" icon="Edit">编辑</el-button>
             <el-button 
               size="small" 
               type="success" 
               v-if="scope.row.level === 1"
-              @click="addSubCategory(scope.row)">添加子分类</el-button>
+              @click="addSubCategory(scope.row)" icon="Plus">添加子分类</el-button>
             <el-button 
               size="small" 
               type="danger" 
-              @click="deleteCategory(scope.row)">删除</el-button>
+              @click="deleteCategory(scope.row)" icon="Delete">删除</el-button>
           </template>
         </el-table-column>
       </el-table>

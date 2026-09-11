@@ -1,7 +1,7 @@
 <template>
   <div class="interview-question-detail">
     <div class="detail-header">
-      <el-button @click="$router.go(-1)" icon="el-icon-arrow-left">返回</el-button>
+      <el-button @click="$router.go(-1)"><el-icon><Back /></el-icon>返回</el-button>
       <h2>真题详情</h2>
     </div>
     
@@ -19,7 +19,7 @@
               <el-button type="warning" :loading="aiAnalysisLoading" @click="handleAiAnalysis">AI 解析本题</el-button>
               <el-button type="primary" @click="handleStartPractice">开始练习</el-button>
               <el-button @click="handleToggleFavorite">
-                <i :class="isFavorited ? 'el-icon-star-on' : 'el-icon-star-off'"></i>
+                <el-icon><StarFilled v-if="isFavorited" /><Star v-else /></el-icon>
                 {{ isFavorited ? '取消收藏' : '收藏' }}
               </el-button>
             </div>
@@ -74,7 +74,7 @@
             <el-col :span="6">
               <div class="meta-item">
                 <label>上传时间：</label>
-                <span>{{ formatDate(question.createdTime) }}</span>
+                <span>{{ formatDate(question.createTime) }}</span>
               </div>
             </el-col>
             <el-col :span="6">

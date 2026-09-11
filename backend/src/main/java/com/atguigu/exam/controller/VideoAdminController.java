@@ -66,7 +66,7 @@ public class VideoAdminController {
             @Parameter(description = "分类ID") @RequestParam Long categoryId,
             @Parameter(description = "标签") @RequestParam(required = false) String tags,
             @Parameter(description = "上传者名称") @RequestParam String uploaderName,
-            @Parameter(description = "视频时长（秒）") @RequestParam(required = false) Integer duration,
+            @Parameter(description = "视频时长（秒），必填（前端自动识别，5 分钟以内）") @RequestParam Integer duration,
             @Parameter(description = "视频文件") @RequestParam MultipartFile videoFile,
             @Parameter(description = "封面文件") @RequestParam(required = false) MultipartFile coverFile) {
         

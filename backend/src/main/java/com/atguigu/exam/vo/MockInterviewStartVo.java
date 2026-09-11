@@ -26,4 +26,7 @@ public class MockInterviewStartVo implements Serializable {
 
     @Schema(description = "面试时长(分钟) 15-120")
     private Integer duration;
+
+    @Schema(description = "个性化模式：开启后结合答题诊断，优先从薄弱知识点方向出题")
+    private Boolean personalized;
 }

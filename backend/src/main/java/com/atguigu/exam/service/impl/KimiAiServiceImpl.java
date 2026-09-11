@@ -19,8 +19,8 @@ import org.springframework.stereotype.Service;
 import java.util.*;
 
 /**
- * Kimi AI服务实现类
- * 调用Kimi API智能生成题目
+ * AI 通用调用服务（类名保留历史，实际统一走阿里云百炼 DashScope：kimi-k3）
+ * 封装重试逻辑，供出题/判卷/面试/总评等 AI 能力复用
  */
 @Slf4j
 @Service

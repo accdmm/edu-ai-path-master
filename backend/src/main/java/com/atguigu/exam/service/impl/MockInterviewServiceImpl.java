@@ -14,7 +14,9 @@ import com.atguigu.exam.mapper.MockInterviewAnswerMapper;
 import com.atguigu.exam.mapper.MockInterviewMapper;
 import com.atguigu.exam.service.MockInterviewAiService;
 import com.atguigu.exam.service.MockInterviewService;
+import com.atguigu.exam.service.UserDiagnosisService;
 import com.atguigu.exam.vo.InterviewResultVo;
+import com.atguigu.exam.vo.LearningPathDetailVo;
 import com.atguigu.exam.vo.MockInterviewAnswerDetailVo;
 import com.atguigu.exam.vo.MockInterviewCompleteVo;
 import com.atguigu.exam.vo.MockInterviewDetailVo;
@@ -37,6 +39,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -58,6 +61,8 @@ public class MockInterviewServiceImpl implements MockInterviewService {
     private InterviewQuestionCategoryMapper categoryMapper;
     @Autowired
     private MockInterviewAiService mockInterviewAiService;
+    @Autowired
+    private UserDiagnosisService userDiagnosisService;
 
     private static final int MAX_QUESTIONS = 20;
     private static final int DEFAULT_DURATION = 60;
@@ -72,31 +77,9 @@ public class MockInterviewServiceImpl implements MockInterviewService {
             String companyType = vo.getCompanyType() == null ? "large" : vo.getCompanyType();
             int duration = vo.getDuration() == null ? DEFAULT_DURATION : vo.getDuration();
 
-            List<InterviewQuestion> questionPool = questionMapper.selectList(
-                    new LambdaQueryWrapper<InterviewQuestion>()
-                            .eq(InterviewQuestion::getStatus, "approved")
-                            .eq(InterviewQuestion::getDirection, direction)
-                            .eq(InterviewQuestion::getDifficultyLevel, difficulty)
-                            .orderByDesc(InterviewQuestion::getViewCount));
-
-            if (questionPool.size() < questionCount) {
-                List<InterviewQuestion> sameDirection = questionMapper.selectList(
-                        new LambdaQueryWrapper<InterviewQuestion>()
-                                .eq(InterviewQuestion::getStatus, "approved")
-                                .eq(InterviewQuestion::getDirection, direction)
-                                .orderByDesc(InterviewQuestion::getViewCount));
-                for (InterviewQuestion q : sameDirection) {
-                    if (questionPool.size() >= questionCount) {
-                        break;
-                    }
-                    boolean exists = questionPool.stream().anyMatch(p -> p.getId().equals(q.getId()));
-                    if (!exists) {
-                        questionPool.add(q);
-                    }
-                }
-            }
-
-            List<InterviewQuestion> picked = questionPool.subList(0, Math.min(questionCount, questionPool.size()));
+            // 个性化模式：结合答题诊断优先从薄弱知识点方向出题；否则按所选方向
+            List<InterviewQuestion> picked = pickQuestions(direction, questionCount,
+                    Boolean.TRUE.equals(vo.getPersonalized()) ? userId : null);
             if (picked.isEmpty()) {
                 return Result.error("该方向暂无可用题目，请先到企业真题库查看");
             }
@@ -240,13 +223,28 @@ public class MockInterviewServiceImpl implements MockInterviewService {
             interviewMapper.updateById(record);
 
             // 生成面试官总结（若存在答题记录）
+            Map<String, Object> personalizedReport = null;
             if (!answers.isEmpty()) {
                 try {
                     List<MockInterviewAnswerDetailVo> details = toDetailVos(answers);
-                    Map<String, Object> summary = mockInterviewAiService.summarizeInterview(details);
+                    List<LearningPathDetailVo.DiagnosisItemVo> diagnosis = userDiagnosisService.buildDiagnosis(userId);
+                    Map<String, Object> summary;
+                    if (diagnosis.isEmpty()) {
+                        summary = mockInterviewAiService.summarizeInterview(details);
+                    } else {
+                        summary = mockInterviewAiService.summarizePersonalizedInterview(details, diagnosis);
+                    }
                     record.setInterviewerSummary((String) summary.get("summary"));
                     record.setImprovementSuggestions(JSON.toJSONString(summary.get("improvements")));
                     interviewMapper.updateById(record);
+
+                    // 有诊断数据时组装个性化报告（联动学习路径）
+                    if (!diagnosis.isEmpty()) {
+                        personalizedReport = new HashMap<>();
+                        personalizedReport.put("diagnosis", diagnosis);
+                        personalizedReport.put("summary", summary.get("summary"));
+                        personalizedReport.put("suggestions", summary.get("improvements"));
+                    }
                 } catch (Exception e) {
                     log.warn("生成面试官总结失败，使用默认总结", e);
                     if (record.getInterviewerSummary() == null) {
@@ -259,7 +257,9 @@ public class MockInterviewServiceImpl implements MockInterviewService {
                 }
             }
 
-            return Result.success(buildCompleteVo(record), "面试已完成");
+            MockInterviewCompleteVo vo = buildCompleteVo(record);
+            vo.setPersonalizedReport(personalizedReport);
+            return Result.success(vo, "面试已完成");
         } catch (Exception e) {
             log.error("完成面试失败", e);
             return Result.error("完成面试失败");
@@ -324,6 +324,16 @@ public class MockInterviewServiceImpl implements MockInterviewService {
             }
             vo.setLearningSuggestions(suggestions);
             vo.setAbilityScores(new HashMap<>());
+
+            // 个性化报告（联动答题诊断）：有诊断数据时返回，供结果页展示并引导生成学习路径
+            List<LearningPathDetailVo.DiagnosisItemVo> diagnosis = userDiagnosisService.buildDiagnosis(userId);
+            if (!diagnosis.isEmpty()) {
+                Map<String, Object> report = new HashMap<>();
+                report.put("diagnosis", diagnosis);
+                report.put("summary", record.getInterviewerSummary() == null ? "" : record.getInterviewerSummary());
+                report.put("suggestions", improvements);
+                vo.setPersonalizedReport(report);
+            }
             return Result.success(vo);
         } catch (Exception e) {
             log.error("查询面试结果失败", e);
@@ -538,5 +548,79 @@ public class MockInterviewServiceImpl implements MockInterviewService {
             return "";
         }
         return content.length() <= length ? content : content.substring(0, length) + "...";
+    }
+
+    /**
+     * 抽题：personalizedUserId 非空时结合答题诊断，优先从薄弱知识点方向出题（薄弱方向占约 60% 配额），
+     * 其余用所选方向补齐；无诊断或映射不出方向时退回纯所选方向。
+     */
+    private List<InterviewQuestion> pickQuestions(String direction, int questionCount, Long personalizedUserId) {
+        if (personalizedUserId != null) {
+            List<LearningPathDetailVo.DiagnosisItemVo> diagnosis = userDiagnosisService.buildDiagnosis(personalizedUserId);
+            List<String> weakDirections = diagnosis.stream()
+                    .map(item -> mapCategoryToDirection(item.getCategoryName()))
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .limit(2)
+                    .collect(Collectors.toList());
+            if (!weakDirections.isEmpty()) {
+                List<InterviewQuestion> picked = new ArrayList<>();
+                int weakQuota = Math.min(questionCount, Math.max(1, (int) Math.ceil(questionCount * 0.6)));
+                for (String weakDir : weakDirections) {
+                    if (picked.size() >= weakQuota) {
+                        break;
+                    }
+                    for (InterviewQuestion q : queryPool(weakDir)) {
+                        if (picked.size() >= weakQuota) {
+                            break;
+                        }
+                        if (picked.stream().noneMatch(p -> p.getId().equals(q.getId()))) {
+                            picked.add(q);
+                        }
+                    }
+                }
+                // 所选方向补齐剩余配额
+                for (InterviewQuestion q : queryPool(direction)) {
+                    if (picked.size() >= questionCount) {
+                        break;
+                    }
+                    if (picked.stream().noneMatch(p -> p.getId().equals(q.getId()))) {
+                        picked.add(q);
+                    }
+                }
+                if (!picked.isEmpty()) {
+                    return picked;
+                }
+            }
+        }
+        List<InterviewQuestion> pool = queryPool(direction);
+        return pool.isEmpty() ? new ArrayList<>() : pool.subList(0, Math.min(questionCount, pool.size()));
+    }
+
+    /**
+     * 按方向查询真题池（已审核、按浏览热度排序）
+     */
+    private List<InterviewQuestion> queryPool(String direction) {
+        return questionMapper.selectList(
+                new LambdaQueryWrapper<InterviewQuestion>()
+                        .eq(InterviewQuestion::getStatus, "approved")
+                        .eq(InterviewQuestion::getDirection, direction)
+                        .orderByDesc(InterviewQuestion::getViewCount));
+    }
+
+    /**
+     * 诊断分类名 -> 真题技术方向 粗映射；无法映射返回 null
+     */
+    private String mapCategoryToDirection(String categoryName) {
+        if (categoryName == null) {
+            return null;
+        }
+        if (categoryName.contains("Java")) return "java";
+        if (categoryName.contains("前端")) return "frontend";
+        if (categoryName.contains("大数据")) return "bigdata";
+        if (categoryName.contains("算法")) return "algorithm";
+        if (categoryName.contains("运维")) return "devops";
+        if (categoryName.contains("测试")) return "testing";
+        return null;
     }
 }

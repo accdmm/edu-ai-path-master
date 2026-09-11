@@ -46,6 +46,11 @@
             <span class="form-tip">分钟</span>
           </el-form-item>
           
+          <el-form-item label="个性化" prop="personalized">
+            <el-switch v-model="interviewConfig.personalized" active-text="开" inactive-text="关"></el-switch>
+            <span class="form-tip">开启后结合你的答题诊断，优先从薄弱知识点方向出题</span>
+          </el-form-item>
+          
           <el-form-item>
             <el-button type="primary" @click="handleStartInterview" :loading="starting">开始面试</el-button>
             <el-button @click="$router.go(-1)">返回</el-button>
@@ -63,7 +68,7 @@
         </div>
         <div class="header-right">
           <div class="timer">
-            <i class="el-icon-time"></i>
+            <el-icon><Clock /></el-icon>
             <span>{{ formatTime(remainingTime) }}</span>
           </div>
           <el-button type="danger" @click="handleEndInterview">结束面试</el-button>
@@ -112,14 +117,14 @@
                   @click="startRecording"
                   :disabled="!isVoiceSupported"
                 >
-                  <i class="el-icon-microphone"></i> 开始录音
+                  <el-icon><Microphone /></el-icon> 开始录音
                 </el-button>
                 <el-button 
                   v-else 
                   type="danger" 
                   @click="stopRecording"
                 >
-                  <i class="el-icon-video-pause"></i> 停止录音
+                  <el-icon><VideoPause /></el-icon> 停止录音
                 </el-button>
                 <span v-if="isRecording" class="recording-time">{{ recordingTime }}s</span>
               </div>
@@ -239,7 +244,8 @@ export default {
       questionCount: 5,
       difficulty: 'medium',
       companyType: 'large',
-      duration: 30
+      duration: 30,
+      personalized: true
     })
     
     const configRules = {

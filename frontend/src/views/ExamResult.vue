@@ -308,6 +308,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Loading, ChatDotRound, Download, Setting, HomeFilled, List, SuccessFilled } from '@element-plus/icons-vue'
 import { getExamRecordById } from '../api/exam.js'
+import request from '@/utils/request'
 import html2canvas from 'html2canvas'
 
 const route = useRoute()
@@ -559,23 +560,23 @@ const getGradeText = (percentage) => {
 
 // 获取排名信息
 const fetchRankingInfo = async (examRecordId, paperId) => {
+  if (!paperId) return
   try {
-    const response = await fetch(`http://localhost:8080/api/exam-records/ranking?paperId=${paperId}&limit=1000`)
-    const result = await response.json()
-    
+    const result = await request.get(`/api/exam-records/ranking?paperId=${paperId}&limit=1000`)
+
     if (result.code === 200) {
-      const rankings = result.data
-      
+      const rankings = result.data || []
+
       // 找到当前考试记录的排名
-      const sortedRankings = rankings.sort((a, b) => b.score - a.score)
-      const currentRankIndex = sortedRankings.findIndex(record => record.id === examRecordId)
-      
+      const sortedRankings = [...rankings].sort((a, b) => b.score - a.score)
+      const currentRankIndex = sortedRankings.findIndex(record => record.id === Number(examRecordId))
+
       if (currentRankIndex !== -1) {
         const currentRank = currentRankIndex + 1
         const totalParticipants = rankings.length
         const beatCount = totalParticipants - currentRank
         const beatPercentage = totalParticipants > 1 ? Math.round((beatCount / (totalParticipants - 1)) * 100) : 0
-        
+
         rankingInfo.value = {
           currentRank,
           totalParticipants,
@@ -639,10 +640,10 @@ const fetchExamResult = async (silent = false) => {
       })
     }
     
-    // 获取排名信息
+    // 获取排名信息（排名接口按 paperId 维度，考试记录里挂的是试卷）
     if (examRecord.value.status === '已批阅') {
       stopGradingPoll()
-      await fetchRankingInfo(examRecord.value.id, examRecord.value.examId)
+      await fetchRankingInfo(examRecord.value.id, examRecord.value.paper?.id)
     }
   } catch (error) {
     console.error('加载考试结果失败:', error)

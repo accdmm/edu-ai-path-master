@@ -2,7 +2,7 @@
   <div class="activate-code">
     <!-- 页面标题 -->
     <div class="activate-header">
-      <el-button @click="$router.go(-1)" icon="el-icon-arrow-left">返回</el-button>
+      <el-button @click="$router.go(-1)"><el-icon><Back /></el-icon>返回</el-button>
       <h2>激活邀请码</h2>
     </div>
 
@@ -190,6 +190,7 @@
 
 <script>
 import { ref, reactive } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { InfoFilled, Key, User, Message, ShoppingCart } from '@element-plus/icons-vue'
 import { activateInterviewCode } from '@/api/interviewQuestion'
@@ -204,6 +205,7 @@ export default {
     ShoppingCart
   },
   setup() {
+    const router = useRouter()
     // 响应式数据
     const activating = ref(false)
     const requesting = ref(false)
@@ -252,7 +254,7 @@ export default {
         await activateInterviewCode(activateForm.code)
         ElMessage.success('邀请码激活成功！')
         // 跳转到企业真题页面
-        this.$router.push('/interview-questions')
+        router.push('/interview-questions')
       } catch (error) {
         ElMessage.error('激活失败，请检查邀请码是否正确')
       } finally {
@@ -272,7 +274,7 @@ export default {
     
     // 购买邀请码：跳转沙箱支付页
     const handlePurchaseCode = () => {
-      this.$router.push('/pay')
+      router.push('/pay')
     }
     
     // 提交申请

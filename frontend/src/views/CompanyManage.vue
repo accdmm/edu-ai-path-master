@@ -16,17 +16,10 @@
         <el-form-item label="企业名称">
           <el-input 
             v-model="searchParams.keyword" 
-            placeholder="请输入企业名称或行业"
+            placeholder="请输入企业名称"
             clearable
             @keyup.enter="searchCompanies">
           </el-input>
-        </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="searchParams.status" placeholder="全部状态" clearable>
-            <el-option label="全部" :value="null"></el-option>
-            <el-option label="启用" :value="1"></el-option>
-            <el-option label="禁用" :value="0"></el-option>
-          </el-select>
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="searchCompanies">
@@ -46,25 +39,22 @@
         style="width: 100%">
         <el-table-column prop="id" label="ID" width="80"></el-table-column>
         <el-table-column prop="name" label="企业名称" min-width="150"></el-table-column>
-        <el-table-column prop="industry" label="所属行业" width="120"></el-table-column>
-        <el-table-column prop="size" label="企业规模" width="120"></el-table-column>
-        <el-table-column prop="location" label="企业位置" width="120"></el-table-column>
-        <el-table-column prop="website" label="官网" width="150" show-overflow-tooltip></el-table-column>
-        <el-table-column prop="contactPerson" label="联系人" width="100"></el-table-column>
-        <el-table-column prop="contactPhone" label="联系电话" width="120"></el-table-column>
-        <el-table-column prop="status" label="状态" width="80">
+        <el-table-column prop="logo" label="Logo" min-width="120" show-overflow-tooltip></el-table-column>
+        <el-table-column prop="description" label="企业描述" min-width="180" show-overflow-tooltip></el-table-column>
+        <el-table-column prop="totalQuestions" label="题目数" width="90"></el-table-column>
+        <el-table-column prop="isPremium" label="付费可见" width="100">
           <template #default="scope">
-            <el-tag :type="scope.row.status === 1 ? 'success' : 'danger'">
-              {{ scope.row.status === 1 ? '启用' : '禁用' }}
+            <el-tag :type="scope.row.isPremium ? 'warning' : 'info'">
+              {{ scope.row.isPremium ? '付费' : '免费' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="createdTime" label="创建时间" width="180"></el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column prop="createTime" label="创建时间" width="180"></el-table-column>
+        <el-table-column label="操作" width="240" fixed="right">
           <template #default="scope">
-            <el-button size="small" @click="viewCompany(scope.row)">查看</el-button>
-            <el-button size="small" type="primary" @click="editCompany(scope.row)">编辑</el-button>
-            <el-button size="small" type="danger" @click="deleteCompany(scope.row)">删除</el-button>
+            <el-button size="small" @click="viewCompany(scope.row)" icon="View">查看</el-button>
+            <el-button size="small" type="primary" @click="editCompany(scope.row)" icon="Edit">编辑</el-button>
+            <el-button size="small" type="danger" @click="deleteCompany(scope.row)" icon="Delete">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -98,8 +88,8 @@
         <el-form-item label="企业名称" prop="name">
           <el-input v-model="companyForm.name" placeholder="请输入企业名称"></el-input>
         </el-form-item>
-        <el-form-item label="logo图片" prop="logoUrl">
-          <el-input v-model="companyForm.logoUrl" placeholder="请输入logo图片URL"></el-input>
+        <el-form-item label="Logo URL" prop="logo">
+          <el-input v-model="companyForm.logo" placeholder="请输入企业Logo图片URL"></el-input>
         </el-form-item>
         <el-form-item label="企业描述" prop="description">
           <el-input 
@@ -109,37 +99,11 @@
             :rows="3">
           </el-input>
         </el-form-item>
-        <el-form-item label="所属行业" prop="industry">
-          <el-input v-model="companyForm.industry" placeholder="请输入所属行业"></el-input>
+        <el-form-item label="题目总数" prop="totalQuestions">
+          <el-input-number v-model="companyForm.totalQuestions" :min="0" style="width: 100%"></el-input-number>
         </el-form-item>
-        <el-form-item label="企业规模" prop="size">
-          <el-select v-model="companyForm.size" placeholder="请选择企业规模">
-            <el-option label="小型" value="小型"></el-option>
-            <el-option label="中型" value="中型"></el-option>
-            <el-option label="大型" value="大型"></el-option>
-            <el-option label="超大型" value="超大型"></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="企业位置" prop="location">
-          <el-input v-model="companyForm.location" placeholder="请输入企业位置"></el-input>
-        </el-form-item>
-        <el-form-item label="企业官网" prop="website">
-          <el-input v-model="companyForm.website" placeholder="请输入企业官网URL"></el-input>
-        </el-form-item>
-        <el-form-item label="联系人" prop="contactPerson">
-          <el-input v-model="companyForm.contactPerson" placeholder="请输入联系人"></el-input>
-        </el-form-item>
-        <el-form-item label="联系电话" prop="contactPhone">
-          <el-input v-model="companyForm.contactPhone" placeholder="请输入联系电话"></el-input>
-        </el-form-item>
-        <el-form-item label="联系邮箱" prop="contactEmail">
-          <el-input v-model="companyForm.contactEmail" placeholder="请输入联系邮箱"></el-input>
-        </el-form-item>
-        <el-form-item label="状态" prop="status">
-          <el-radio-group v-model="companyForm.status">
-            <el-radio :label="1">启用</el-radio>
-            <el-radio :label="0">禁用</el-radio>
-          </el-radio-group>
+        <el-form-item label="付费可见" prop="isPremium">
+          <el-switch v-model="companyForm.isPremium" active-text="付费" inactive-text="免费"></el-switch>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -161,43 +125,21 @@
           <span class="value">{{ viewCompanyData.name }}</span>
         </div>
         <div class="detail-row">
-          <span class="label">所属行业：</span>
-          <span class="value">{{ viewCompanyData.industry }}</span>
-        </div>
-        <div class="detail-row">
-          <span class="label">企业规模：</span>
-          <span class="value">{{ viewCompanyData.size }}</span>
-        </div>
-        <div class="detail-row">
-          <span class="label">企业位置：</span>
-          <span class="value">{{ viewCompanyData.location }}</span>
-        </div>
-        <div class="detail-row">
-          <span class="label">企业官网：</span>
+          <span class="label">Logo：</span>
           <span class="value">
-            <a :href="viewCompanyData.website" target="_blank" v-if="viewCompanyData.website">
-              {{ viewCompanyData.website }}
-            </a>
+            <img v-if="viewCompanyData.logo" :src="viewCompanyData.logo" alt="logo" style="max-height:40px;" />
             <span v-else>-</span>
           </span>
         </div>
         <div class="detail-row">
-          <span class="label">联系人：</span>
-          <span class="value">{{ viewCompanyData.contactPerson || '-' }}</span>
+          <span class="label">题目总数：</span>
+          <span class="value">{{ viewCompanyData.totalQuestions || 0 }}</span>
         </div>
         <div class="detail-row">
-          <span class="label">联系电话：</span>
-          <span class="value">{{ viewCompanyData.contactPhone || '-' }}</span>
-        </div>
-        <div class="detail-row">
-          <span class="label">联系邮箱：</span>
-          <span class="value">{{ viewCompanyData.contactEmail || '-' }}</span>
-        </div>
-        <div class="detail-row">
-          <span class="label">状态：</span>
+          <span class="label">付费可见：</span>
           <span class="value">
-            <el-tag :type="viewCompanyData.status === 1 ? 'success' : 'danger'">
-              {{ viewCompanyData.status === 1 ? '启用' : '禁用' }}
+            <el-tag :type="viewCompanyData.isPremium ? 'warning' : 'info'">
+              {{ viewCompanyData.isPremium ? '付费' : '免费' }}
             </el-tag>
           </span>
         </div>
@@ -207,11 +149,11 @@
         </div>
         <div class="detail-row">
           <span class="label">创建时间：</span>
-          <span class="value">{{ viewCompanyData.createdTime }}</span>
+          <span class="value">{{ viewCompanyData.createTime }}</span>
         </div>
         <div class="detail-row">
           <span class="label">更新时间：</span>
-          <span class="value">{{ viewCompanyData.updatedTime }}</span>
+          <span class="value">{{ viewCompanyData.updateTime }}</span>
         </div>
       </div>
       <template #footer>
@@ -263,16 +205,10 @@ export default {
     const companyForm = reactive({
       id: null,
       name: '',
-      logoUrl: '',
+      logo: '',
       description: '',
-      industry: '',
-      size: '',
-      location: '',
-      website: '',
-      contactPerson: '',
-      contactPhone: '',
-      contactEmail: '',
-      status: 1
+      totalQuestions: 0,
+      isPremium: false
     })
 
     // 表单验证规则
@@ -280,18 +216,6 @@ export default {
       name: [
         { required: true, message: '请输入企业名称', trigger: 'blur' },
         { min: 2, max: 100, message: '企业名称长度在 2 到 100 个字符', trigger: 'blur' }
-      ],
-      industry: [
-        { required: true, message: '请输入所属行业', trigger: 'blur' }
-      ],
-      size: [
-        { required: true, message: '请选择企业规模', trigger: 'change' }
-      ],
-      location: [
-        { required: true, message: '请输入企业位置', trigger: 'blur' }
-      ],
-      contactEmail: [
-        { type: 'email', message: '请输入正确的邮箱地址', trigger: 'blur' }
       ]
     }
 
@@ -303,8 +227,7 @@ export default {
           params: {
             page: pagination.current,
             size: pagination.size,
-            keyword: searchParams.keyword || undefined,
-            status: searchParams.status
+            keyword: searchParams.keyword || undefined
           }
         })
         
@@ -331,7 +254,6 @@ export default {
     // 重置搜索条件
     const resetSearch = () => {
       searchParams.keyword = ''
-      searchParams.status = null
       searchCompanies()
     }
 
@@ -438,16 +360,10 @@ export default {
       Object.assign(companyForm, {
         id: null,
         name: '',
-        logoUrl: '',
+        logo: '',
         description: '',
-        industry: '',
-        size: '',
-        location: '',
-        website: '',
-        contactPerson: '',
-        contactPhone: '',
-        contactEmail: '',
-        status: 1
+        totalQuestions: 0,
+        isPremium: false
       })
       // 清除表单验证状态
       if (companyFormRef.value) {

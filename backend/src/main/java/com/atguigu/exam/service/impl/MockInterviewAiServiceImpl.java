@@ -5,6 +5,7 @@ import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.atguigu.exam.service.KimiAiService;
 import com.atguigu.exam.service.MockInterviewAiService;
+import com.atguigu.exam.vo.LearningPathDetailVo;
 import com.atguigu.exam.vo.MockInterviewAnswerDetailVo;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -201,6 +202,100 @@ public class MockInterviewAiServiceImpl implements MockInterviewAiService {
         prompt.append("  \"technicalAccuracy\": 4,\n");
         prompt.append("  \"clarity\": 4,\n");
         prompt.append("  \"logic\": 3\n");
+        prompt.append("}\n");
+        prompt.append("```\n");
+        return prompt.toString();
+    }
+
+    @Override
+    public Map<String, Object> summarizePersonalizedInterview(List<MockInterviewAnswerDetailVo> answers,
+                                                              List<LearningPathDetailVo.DiagnosisItemVo> diagnosis) {
+        String prompt = buildPersonalizedSummaryPrompt(answers, diagnosis);
+        String content = safeCall(prompt);
+        String realResult = extractJson(content);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("summary", "本次模拟面试已完成，整体表现中规中矩，建议针对薄弱知识点加强练习。");
+        result.put("strengths", new ArrayList<String>());
+        result.put("improvements", List.of("加强基础概念理解", "增加代码实践"));
+        Map<String, Integer> ability = new HashMap<>();
+        ability.put("technicalAccuracy", 60);
+        ability.put("clarity", 60);
+        ability.put("logic", 60);
+        ability.put("knowledge", 60);
+        ability.put("experience", 50);
+        result.put("abilityScores", ability);
+
+        try {
+            JSONObject json = JSON.parseObject(realResult);
+            if (json != null) {
+                if (json.getString("summary") != null) {
+                    result.put("summary", json.getString("summary"));
+                }
+                JSONArray strengths = json.getJSONArray("strengths");
+                if (strengths != null && !strengths.isEmpty()) {
+                    result.put("strengths", strengths.toList(String.class));
+                }
+                JSONArray improvements = json.getJSONArray("improvements");
+                if (improvements != null && !improvements.isEmpty()) {
+                    result.put("improvements", improvements.toList(String.class));
+                }
+                JSONObject abilityObj = json.getJSONObject("abilityScores");
+                if (abilityObj != null) {
+                    Map<String, Integer> parsed = new HashMap<>();
+                    parsed.put("technicalAccuracy", clamp0to100(abilityObj.getIntValue("technicalAccuracy", 60)));
+                    parsed.put("clarity", clamp0to100(abilityObj.getIntValue("clarity", 60)));
+                    parsed.put("logic", clamp0to100(abilityObj.getIntValue("logic", 60)));
+                    parsed.put("knowledge", clamp0to100(abilityObj.getIntValue("knowledge", 60)));
+                    parsed.put("experience", clamp0to100(abilityObj.getIntValue("experience", 50)));
+                    result.put("abilityScores", parsed);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("AI 个性化总结解析失败，使用兜底总结。原始内容: {}", realResult, e);
+        }
+        return result;
+    }
+
+    private String buildPersonalizedSummaryPrompt(List<MockInterviewAnswerDetailVo> answers,
+                                                  List<LearningPathDetailVo.DiagnosisItemVo> diagnosis) {
+        StringBuilder prompt = new StringBuilder();
+        prompt.append("你是一名资深面试官，请基于以下一次模拟面试的答题情况和用户的答题诊断数据，输出整体评价、能力评估与学习规划建议（用于联动 AI 学习路径）。\n\n");
+        if (diagnosis != null && !diagnosis.isEmpty()) {
+            prompt.append("【用户知识点诊断（得分率升序=最薄弱在前）】\n");
+            for (int i = 0; i < diagnosis.size(); i++) {
+                LearningPathDetailVo.DiagnosisItemVo d = diagnosis.get(i);
+                prompt.append(i + 1).append(". ").append(d.getCategoryName())
+                        .append("：得分率 ").append(d.getCorrectRate())
+                        .append("%，答题 ").append(d.getAnswerCount()).append(" 道\n");
+            }
+            prompt.append("\n");
+        }
+        prompt.append("【答题明细】\n");
+        int totalScore = 0;
+        for (int i = 0; i < answers.size(); i++) {
+            MockInterviewAnswerDetailVo a = answers.get(i);
+            totalScore += a.getScore();
+            String content = a.getQuestion() != null ? a.getQuestion().getQuestionContent() : "";
+            prompt.append(i + 1).append(". 题目：").append(content)
+                    .append("\n   得分：").append(a.getScore()).append("/").append(a.getMaxScore())
+                    .append("   AI评价：").append(a.getAiEvaluation() == null ? "" : a.getAiEvaluation()).append("\n");
+        }
+        if (!answers.isEmpty()) {
+            prompt.append("平均得分：").append(totalScore / (double) answers.size()).append("/100\n\n");
+        }
+        prompt.append("【输出要求】\n");
+        prompt.append("1. summary：200 字以内的个性化总结，必须结合【用户知识点诊断】，指出本次面试表现与薄弱知识点的关联\n");
+        prompt.append("2. strengths：候选人优点数组\n");
+        prompt.append("3. improvements：需要改进的点数组，优先针对诊断中最薄弱的知识点给出可执行建议\n");
+        prompt.append("4. abilityScores：能力雷达图得分(0-100整数)，字段为 technicalAccuracy(技术准确性)、clarity(表达清晰度)、logic(逻辑性)、knowledge(知识储备)、experience(实践经验)\n\n");
+        prompt.append("请严格按照以下 JSON 格式返回，禁止包含任何其他文字：\n");
+        prompt.append("```json\n");
+        prompt.append("{\n");
+        prompt.append("  \"summary\": \"个性化总结内容\",\n");
+        prompt.append("  \"strengths\": [\"优点1\", \"优点2\"],\n");
+        prompt.append("  \"improvements\": [\"改进1\", \"改进2\"],\n");
+        prompt.append("  \"abilityScores\": {\"technicalAccuracy\": 70, \"clarity\": 65, \"logic\": 60, \"knowledge\": 72, \"experience\": 55}\n");
         prompt.append("}\n");
         prompt.append("```\n");
         return prompt.toString();

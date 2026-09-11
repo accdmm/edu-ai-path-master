@@ -25,4 +25,9 @@ body {
 #app {
   min-height: 100vh;
 }
+
+/* 管理端表格操作列按钮间距统一 */
+.el-table .el-button + .el-button {
+  margin-left: 8px;
+}
 </style> 

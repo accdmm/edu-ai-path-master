@@ -23,9 +23,9 @@
           </template>
         </el-table-column>
         <el-table-column prop="createTime" label="创建时间" width="180" />
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="操作" width="240" fixed="right">
           <template #default="scope">
-            <el-button size="small" @click="editBanner(scope.row)" icon="Edit">编辑</el-button>
+            <el-button size="small" type="primary" @click="editBanner(scope.row)" icon="Edit">编辑</el-button>
             <el-button size="small" :type="scope.row.isActive ? 'warning' : 'success'" @click="toggleBannerStatus(scope.row)" icon="Switch">{{ scope.row.isActive ? '禁用' : '启用' }}</el-button>
             <el-button size="small" type="danger" @click="deleteBanner(scope.row)" icon="Delete">删除</el-button>
           </template>

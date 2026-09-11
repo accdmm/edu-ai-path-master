@@ -37,4 +37,7 @@ public class MockInterviewCompleteVo implements Serializable {
 
     @Schema(description = "详细评分")
     private List<Map<String, Object>> details;
+
+    @Schema(description = "个性化报告（联动答题诊断）：{diagnosis:[{categoryName,correctRate,answerCount}], summary, suggestions:[...]}；无诊断数据时为 null")
+    private Map<String, Object> personalizedReport;
 }

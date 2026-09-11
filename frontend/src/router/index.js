@@ -204,6 +204,12 @@ const routes = [
   },
   // 模拟面试相关路由
   {
+    path: '/ai-interview',
+    name: 'AiInterview',
+    component: () => import('../views/AiInterview.vue'),
+    meta: { title: 'AI 面试官', requiresAuth: true }
+  },
+  {
     path: '/mock-interview',
     name: 'MockInterview',
     component: () => import('../views/MockInterview.vue'),

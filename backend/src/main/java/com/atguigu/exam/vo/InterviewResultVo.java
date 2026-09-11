@@ -42,4 +42,7 @@ public class InterviewResultVo implements Serializable {
 
     @Schema(description = "能力雷达图")
     private Map<String, Integer> abilityScores;
+
+    @Schema(description = "个性化报告（联动答题诊断）：{diagnosis:[...], summary, suggestions:[...]}；无诊断数据时为 null")
+    private Map<String, Object> personalizedReport;
 }

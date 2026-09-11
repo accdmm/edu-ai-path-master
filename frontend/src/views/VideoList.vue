@@ -6,10 +6,10 @@
         <div class="title-section">
           <h1 class="page-title">
             <el-icon><VideoCamera /></el-icon>
-            3分钟技术短视频
+            5分钟技术短视频
           </h1>
         </div>
-        <p class="page-desc">3分钟掌握一个技术点，短视频高效学习编程技能</p>
+        <p class="page-desc">5分钟掌握一个技术点，短视频高效学习编程技能</p>
       </div>
     </div>
 

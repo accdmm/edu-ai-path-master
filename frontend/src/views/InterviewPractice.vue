@@ -2,7 +2,7 @@
   <div class="interview-practice">
     <!-- 页面标题 -->
     <div class="practice-header">
-      <el-button @click="$router.go(-1)" icon="el-icon-arrow-left">返回</el-button>
+      <el-button @click="$router.go(-1)"><el-icon><Back /></el-icon>返回</el-button>
       <h2>真题练习</h2>
     </div>
 
@@ -41,10 +41,10 @@
           <el-form-item label="语音作答">
             <div class="voice-section">
               <el-button v-if="!isRecording" type="primary" @click="startRecording" :disabled="!isVoiceSupported">
-                <i class="el-icon-microphone"></i> 开始录音
+                <el-icon><Microphone /></el-icon> 开始录音
               </el-button>
               <el-button v-else type="danger" @click="stopRecording">
-                <i class="el-icon-video-pause"></i> 停止录音
+                <el-icon><VideoPause /></el-icon> 停止录音
               </el-button>
               <span v-if="isRecording" class="recording-time">{{ recordingTime }}s</span>
               <div v-if="answerForm.voiceUrl" class="voice-player">
@@ -77,7 +77,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { getInterviewQuestionDetail, submitInterviewAnswer } from '@/api/interviewQuestion'
+import { getInterviewQuestionDetail, submitEvaluation } from '@/api/interviewQuestion'
 
 export default {
   name: 'InterviewPractice',
@@ -125,10 +125,9 @@ export default {
         await answerFormRef.value.validate()
         submitting.value = true
         // 提交答案到后端，获取AI评分
-        const res = await submitInterviewAnswer({
+        const res = await submitEvaluation({
           questionId: question.value.id,
-          userAnswer: answerForm.text,
-          voiceFileUrl: answerForm.voiceUrl
+          userAnswer: answerForm.text
         })
         aiScore.value = res.data
         ElMessage.success('提交成功，已获得AI评分！')

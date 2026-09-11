@@ -4,6 +4,7 @@ package com.atguigu.exam.controller;
 import com.atguigu.exam.common.Result;
 import com.atguigu.exam.entity.ExamRecord;
 import com.atguigu.exam.service.ExamService;
+import com.atguigu.exam.utils.UserContextUtil;
 import com.atguigu.exam.vo.StartExamVo;
 import com.atguigu.exam.vo.SubmitAnswerVo;
 import io.swagger.v3.oas.annotations.Operation;
@@ -29,6 +30,9 @@ public class ExamController {
 
     @Autowired
     private ExamService examService;
+
+    @Autowired
+    private UserContextUtil userContextUtil;
 
     /**
      * 开始考试 - 创建新的考试记录
@@ -83,11 +87,14 @@ public class ExamController {
     }
 
     /**
-     * 获取考试记录列表 - 查询所有考试记录
+     * 获取考试记录列表 - 查询当前登录用户的考试记录
      */
     @GetMapping("/records")  // 处理GET请求
-    @Operation(summary = "获取考试记录列表", description = "获取所有考试记录列表，包含基本信息和成绩")  // API描述
+    @Operation(summary = "获取考试记录列表", description = "获取当前登录用户的考试记录列表，包含基本信息和成绩")
     public Result<List<ExamRecord>> getMyRecords() {
-        return Result.success(null);
+        if (!userContextUtil.isAuthenticated()) {
+            return Result.error(401, "请先登录");
+        }
+        return Result.success(examService.customGetMyRecords(userContextUtil.getUserId()));
     }
-} 
+}

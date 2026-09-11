@@ -32,6 +32,9 @@ import java.util.Map;
 @Service
 public class VideoServiceImpl implements VideoService {
 
+    /** 视频时长上限（秒）：5 分钟 */
+    private static final int MAX_VIDEO_DURATION_SECONDS = 300;
+
     @Autowired
     private VideoMapper videoMapper;
 
@@ -185,19 +188,24 @@ public class VideoServiceImpl implements VideoService {
         if (videoFile == null || videoFile.isEmpty()) {
             throw new RuntimeException("视频文件不能为空");
         }
+        // 时长校验：必填且不超过 5 分钟（300 秒）。前端自动识别时长并拦截，后端兜底拒绝缺失/超限
+        if (video.getDuration() == null || video.getDuration() <= 0) {
+            throw new RuntimeException("无法确认视频时长，请上传视频后自动识别，或手动填写正确的时长（1-300 秒）");
+        }
+        if (video.getDuration() > MAX_VIDEO_DURATION_SECONDS) {
+            throw new RuntimeException("视频时长不能超过 5 分钟（300 秒）");
+        }
         
         try {
-            // 上传视频文件
-            Map<String, Object> videoUploadResult = null; //todo: 文件上传以后开放即可！
-                    // fileUploadService.uploadFile(videoFile, "videos/original/");
-            video.setFileUrl(videoUploadResult.get("url").toString());
+            // 上传视频文件到 MinIO（videos/original 目录）
+            String videoUrl = fileUploadService.uploadFile("videos/original", videoFile);
+            video.setFileUrl(videoUrl);
             video.setFileSize(videoFile.getSize());
             
             // 上传封面文件（可选）
             if (coverFile != null && !coverFile.isEmpty()) {
-                Map<String, Object> coverUploadResult = null; //todo： 文件上传以后开放即可
-                        // fileUploadService.uploadFile(coverFile, "videos/covers/");
-                video.setCoverUrl(coverUploadResult.get("url").toString());
+                String coverUrl = fileUploadService.uploadFile("videos/covers", coverFile);
+                video.setCoverUrl(coverUrl);
             }
             
             // 设置用户投稿默认值
@@ -244,19 +252,24 @@ public class VideoServiceImpl implements VideoService {
         if (videoFile == null || videoFile.isEmpty()) {
             throw new RuntimeException("视频文件不能为空");
         }
+        // 时长校验：必填且不超过 5 分钟（300 秒）。前端自动识别时长并拦截，后端兜底拒绝缺失/超限
+        if (video.getDuration() == null || video.getDuration() <= 0) {
+            throw new RuntimeException("无法确认视频时长，请上传视频后自动识别，或手动填写正确的时长（1-300 秒）");
+        }
+        if (video.getDuration() > MAX_VIDEO_DURATION_SECONDS) {
+            throw new RuntimeException("视频时长不能超过 5 分钟（300 秒）");
+        }
         
         try {
-            // 上传视频文件 todo: 文件上传实现以后开放即可！
-            Map<String, Object> videoUploadResult = null;
-                    //fileUploadService.uploadFile(videoFile, "videos/original/");
-            video.setFileUrl(videoUploadResult.get("url").toString());
+            // 上传视频文件到 MinIO（videos/original 目录）
+            String videoUrl = fileUploadService.uploadFile("videos/original", videoFile);
+            video.setFileUrl(videoUrl);
             video.setFileSize(videoFile.getSize());
             
             // 上传封面文件（可选）
             if (coverFile != null && !coverFile.isEmpty()) {
-                Map<String, Object> coverUploadResult = null;
-                       // fileUploadService.uploadFile(coverFile, "videos/covers/");
-                video.setCoverUrl(coverUploadResult.get("url").toString());
+                String coverUrl = fileUploadService.uploadFile("videos/covers", coverFile);
+                video.setCoverUrl(coverUrl);
             }
             
             // 设置管理员上传默认值
@@ -342,10 +355,12 @@ public class VideoServiceImpl implements VideoService {
         videoLikeMapper.delete(new LambdaQueryWrapper<VideoLike>().eq(VideoLike::getVideoId, videoId));
         videoViewMapper.delete(new LambdaQueryWrapper<VideoView>().eq(VideoView::getVideoId, videoId));
         
+        // 同步删除 MinIO 中的视频文件与封面（失败不影响记录删除）
+        fileUploadService.deleteFile(video.getFileUrl());
+        fileUploadService.deleteFile(video.getCoverUrl());
+        
         // 删除视频记录
         videoMapper.deleteById(videoId);
-        
-        // TODO: 删除文件存储中的视频文件和封面文件
     }
 
     @Override

@@ -30,8 +30,8 @@
         <el-table-column prop="createdAt" label="创建时间" width="180" />
         <el-table-column label="操作" width="300" fixed="right">
           <template #default="scope">
-            <el-button size="small" @click="addChildCategory(scope.row)" icon="Plus" v-if="!scope.row.parentId || scope.row.level < 3">添加子分类</el-button>
-            <el-button size="small" @click="editCategory(scope.row)" icon="Edit">编辑</el-button>
+            <el-button size="small" type="success" @click="addChildCategory(scope.row)" icon="Plus" v-if="!scope.row.parentId || scope.row.level < 3">添加子分类</el-button>
+            <el-button size="small" type="primary" @click="editCategory(scope.row)" icon="Edit">编辑</el-button>
             <el-button size="small" :type="scope.row.status === 1 ? 'warning' : 'success'" @click="toggleCategoryStatus(scope.row)" icon="Switch">{{ scope.row.status === 1 ? '禁用' : '启用' }}</el-button>
             <el-button size="small" type="danger" @click="deleteCategory(scope.row)" icon="Delete" :disabled="scope.row.videoCount > 0 || (scope.row.children && scope.row.children.length > 0)">删除</el-button>
           </template>

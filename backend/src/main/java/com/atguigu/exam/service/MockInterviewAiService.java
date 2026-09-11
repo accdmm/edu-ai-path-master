@@ -1,5 +1,6 @@
 package com.atguigu.exam.service;
 
+import com.atguigu.exam.vo.LearningPathDetailVo;
 import com.atguigu.exam.vo.MockInterviewAnswerDetailVo;
 
 import java.util.List;
@@ -29,6 +30,16 @@ public interface MockInterviewAiService {
      * @return {summary:总结, strengths:[...], improvements:[...], abilityScores:{technicalAccuracy,clarity,logic,knowledge,experience}}
      */
     Map<String, Object> summarizeInterview(List<MockInterviewAnswerDetailVo> answers);
+
+    /**
+     * AI 生成个性化面试总结与改进建议（结合用户知识点诊断数据，联动学习路径）
+     *
+     * @param answers   已评分的答题列表
+     * @param diagnosis 用户知识点诊断（correctRate 升序=最薄弱在前），可为空
+     * @return {summary:总结, strengths:[...], improvements:[...], abilityScores:{...}}
+     */
+    Map<String, Object> summarizePersonalizedInterview(List<MockInterviewAnswerDetailVo> answers,
+                                                       List<LearningPathDetailVo.DiagnosisItemVo> diagnosis);
 
     /**
      * AI 讲解一道面试真题（消费积分）

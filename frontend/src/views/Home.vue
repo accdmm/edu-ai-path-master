@@ -101,22 +101,16 @@
             <h3>智能刷题</h3>
             <p>AI推荐题目，个性化练习，智能分析弱项</p>
           </div>
-          <!-- 移除企业真题卡片 -->
-          <!--
           <div class="action-card" @click="goToInterviewQuestions">
             <el-icon class="card-icon interview-icon"><ChatDotRound /></el-icon>
             <h3>企业真题</h3>
             <p>各大企业真实面试题，提前了解面试重点</p>
           </div>
-          -->
-          <!-- 移除模拟面试卡片 -->
-          <!--
           <div class="action-card" @click="goToMockInterview">
             <el-icon class="card-icon mock-icon"><Microphone /></el-icon>
-            <h3>模拟面试</h3>
-            <p>AI模拟面试官，语音答题，智能评分反馈</p>
+            <h3>AI 面试官</h3>
+            <p>AI实时提问、逐轮追问，像真实面试一样多轮对答</p>
           </div>
-          -->
           <div class="action-card" @click="goToChat">
             <el-icon class="card-icon chat-icon"><Cpu /></el-icon>
             <h3>AI 客服</h3>
@@ -533,7 +527,7 @@ const goToInterviewQuestions = () => {
 }
 
 const goToMockInterview = () => {
-  router.push('/mock-interview')
+  router.push('/ai-interview')
 }
 
 const goToChat = () => {

@@ -1,6 +1,7 @@
 package com.atguigu.exam.controller;
 
 import com.atguigu.exam.common.Result;
+import com.atguigu.exam.entity.InterviewCompany;
 import com.atguigu.exam.service.AdminContentService;
 import com.atguigu.exam.vo.InterviewQuestionManageQueryVo;
 import com.atguigu.exam.vo.InterviewQuestionSaveVo;
@@ -57,8 +58,34 @@ public class AdminContentController {
 
     @Operation(summary = "企业列表（管理端）")
     @GetMapping("/api/companies/list")
-    public Result<List<Map<String, Object>>> companyList() {
-        return adminContentService.listCompanies();
+    public Result<Map<String, Object>> companyList(@RequestParam(defaultValue = "1") Integer page,
+                                                   @RequestParam(defaultValue = "10") Integer size,
+                                                   @RequestParam(required = false) String keyword) {
+        return adminContentService.pageCompanies(page, size, keyword);
+    }
+
+    @Operation(summary = "企业详情（门户）")
+    @GetMapping("/api/companies/{id}")
+    public Result<Map<String, Object>> companyDetail(@PathVariable Long id) {
+        return adminContentService.companyDetail(id);
+    }
+
+    @Operation(summary = "新增企业")
+    @PostMapping("/api/companies")
+    public Result<Map<String, Object>> createCompany(@RequestBody InterviewCompany company) {
+        return adminContentService.createCompany(company);
+    }
+
+    @Operation(summary = "编辑企业")
+    @PutMapping("/api/companies/{id}")
+    public Result<Map<String, Object>> updateCompany(@PathVariable Long id, @RequestBody InterviewCompany company) {
+        return adminContentService.updateCompany(id, company);
+    }
+
+    @Operation(summary = "删除企业")
+    @DeleteMapping("/api/companies/{id}")
+    public Result<Void> deleteCompany(@PathVariable Long id) {
+        return adminContentService.deleteCompany(id);
     }
 
     @Operation(summary = "题集分类列表（按企业）")

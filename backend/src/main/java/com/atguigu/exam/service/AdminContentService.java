@@ -37,6 +37,31 @@ public interface AdminContentService {
     Result<List<Map<String, Object>>> listCompanies();
 
     /**
+     * 企业列表（管理端分页，支持名称搜索）
+     */
+    Result<Map<String, Object>> pageCompanies(Integer page, Integer size, String keyword);
+
+    /**
+     * 企业详情（门户企业详情页）
+     */
+    Result<Map<String, Object>> companyDetail(Long id);
+
+    /**
+     * 新增企业
+     */
+    Result<Map<String, Object>> createCompany(InterviewCompany company);
+
+    /**
+     * 编辑企业
+     */
+    Result<Map<String, Object>> updateCompany(Long id, InterviewCompany company);
+
+    /**
+     * 删除企业（逻辑删）
+     */
+    Result<Void> deleteCompany(Long id);
+
+    /**
      * 题集分类列表（按企业筛选）
      */
     Result<List<Map<String, Object>>> listCategories(Long companyId);

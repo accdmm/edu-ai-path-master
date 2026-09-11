@@ -9,7 +9,7 @@
         <!-- 主标题加底色和分割线 -->
         <div class="main-title-bg">
           <h1 class="main-title">
-            <span class="highlight">3分钟</span>技术短视频
+            <span class="highlight">5分钟</span>技术短视频
           </h1>
         </div>
         <!-- 渐变分割线 -->

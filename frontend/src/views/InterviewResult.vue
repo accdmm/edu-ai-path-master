@@ -2,7 +2,7 @@
   <div class="interview-result">
     <!-- 页面标题 -->
     <div class="result-header">
-      <el-button @click="$router.go(-1)" icon="el-icon-arrow-left">返回</el-button>
+      <el-button @click="$router.go(-1)"><el-icon><Back /></el-icon>返回</el-button>
       <h2>面试结果</h2>
     </div>
 
@@ -156,6 +156,41 @@
         </div>
       </el-card>
 
+      <!-- 个性化报告（联动答题诊断） -->
+      <el-card class="personalized-card" v-if="interviewResult.personalizedReport">
+        <template #header>
+          <span>个性化学习报告</span>
+        </template>
+        <div class="personalized-content">
+          <div class="personalized-summary" v-if="interviewResult.personalizedReport.summary">
+            {{ interviewResult.personalizedReport.summary }}
+          </div>
+          <div class="personalized-diagnosis" v-if="interviewResult.personalizedReport.diagnosis && interviewResult.personalizedReport.diagnosis.length">
+            <h4>当前薄弱知识点（基于你的答题诊断）</h4>
+            <el-tag
+              v-for="d in interviewResult.personalizedReport.diagnosis"
+              :key="d.categoryName"
+              size="small"
+              :type="d.correctRate < 50 ? 'danger' : (d.correctRate < 80 ? 'warning' : 'success')"
+              class="diag-tag"
+            >
+              {{ d.categoryName }} 得分率 {{ d.correctRate }}%
+            </el-tag>
+          </div>
+          <div class="personalized-suggestions" v-if="interviewResult.personalizedReport.suggestions && interviewResult.personalizedReport.suggestions.length">
+            <h4>建议改进</h4>
+            <ul>
+              <li v-for="(s, index) in interviewResult.personalizedReport.suggestions" :key="index">{{ s }}</li>
+            </ul>
+          </div>
+          <div class="personalized-actions">
+            <el-button type="primary" :loading="generatingPath" @click="handleGeneratePath">
+              根据本次面试生成学习路径
+            </el-button>
+          </div>
+        </div>
+      </el-card>
+
       <!-- 操作按钮 -->
       <div class="action-buttons">
         <el-button type="primary" @click="handleRetryInterview">重新面试</el-button>
@@ -209,6 +244,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Aim } from '@element-plus/icons-vue'
 import { getMockInterviewDetail } from '@/api/interviewQuestion'
+import request from '@/utils/request'
 import * as echarts from 'echarts'
 
 export default {
@@ -232,8 +268,10 @@ export default {
       answers: [],
       interviewerFeedback: null,
       learningSuggestions: [],
-      abilityScores: {}
+      abilityScores: {},
+      personalizedReport: null
     })
+    const generatingPath = ref(false)
     
     // 雷达图相关
     const radarChartRef = ref(null)
@@ -299,6 +337,24 @@ export default {
     // 重新面试
     const handleRetryInterview = () => {
       router.push('/mock-interview')
+    }
+
+    // 根据本次面试与答题诊断生成学习路径（联动学习路径模块）
+    const handleGeneratePath = async () => {
+      generatingPath.value = true
+      try {
+        const res = await request.post('/api/learning-path/generate', null, { timeout: 180000 })
+        if (res.code === 200) {
+          ElMessage.success('学习路径已提交生成，即将跳转查看')
+          router.push('/learning-path')
+        } else {
+          ElMessage.error(res.message || '生成失败，请重试')
+        }
+      } catch (e) {
+        ElMessage.error('提交生成任务失败，请重试')
+      } finally {
+        generatingPath.value = false
+      }
     }
     
     // 查看详情
@@ -383,11 +439,13 @@ export default {
     return {
       loading,
       interviewResult,
+      generatingPath,
       radarChartRef,
       answerDetailVisible,
       selectedAnswer,
       handleViewAnswer,
       handleRetryInterview,
+      handleGeneratePath,
       handleViewDetail,
       handleShareResult,
       handleViewResource,
@@ -554,6 +612,45 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+
+/* 个性化学习报告 */
+.personalized-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.personalized-summary {
+  color: #303133;
+  font-size: 14px;
+  line-height: 1.8;
+  background: #f5f7fa;
+  border-radius: 6px;
+  padding: 12px 14px;
+}
+
+.personalized-diagnosis h4,
+.personalized-suggestions h4 {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+  color: #606266;
+}
+
+.diag-tag {
+  margin: 0 8px 8px 0;
+}
+
+.personalized-suggestions ul {
+  margin: 0;
+  padding-left: 20px;
+  color: #606266;
+  font-size: 14px;
+  line-height: 2;
+}
+
+.personalized-actions {
+  margin-top: 4px;
 }
 
 .suggestion-item {

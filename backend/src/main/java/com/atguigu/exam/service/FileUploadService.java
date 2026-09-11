@@ -20,4 +20,11 @@ public interface FileUploadService {
      */
     String uploadFile(String folder, MultipartFile file) throws Exception;
 
+    /**
+     * 根据回显 URL 删除 MinIO 中的对象（用于记录删除时同步清理存储）。
+     * 文件不存在或解析失败时静默忽略，不影响业务。
+     * @param url 回显地址（形如 http://host:port/bucket/object）
+     */
+    void deleteFile(String url);
+
 } 

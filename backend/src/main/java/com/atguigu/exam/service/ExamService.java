@@ -54,5 +54,10 @@ public interface ExamService extends IService<ExamRecord> {
      * @return
      */
     List<ExamRankingVO> customGetRanking(Integer paperId, Integer limit);
+
+    /**
+     * 查询当前用户的考试记录列表（按开始时间倒序）
+     */
+    List<ExamRecord> customGetMyRecords(Long userId);
 }
  

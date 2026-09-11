@@ -47,7 +47,7 @@
         <el-table-column prop="endTime" label="结束时间" width="180">
           <template #default="scope">{{ scope.row.endTime ? formatDateTime(scope.row.endTime) : '-' }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="操作" width="240" fixed="right">
           <template #default="scope">
             <el-button size="small" @click="viewDetail(scope.row)" icon="View">查看详情</el-button>
             <el-button v-if="scope.row.status === '已完成'" size="small" type="primary" @click="gradeExam(scope.row)" :loading="scope.row.grading" icon="Edit">批阅</el-button>

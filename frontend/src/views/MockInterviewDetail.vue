@@ -2,7 +2,7 @@
   <div class="mock-interview-detail">
     <!-- 页面标题 -->
     <div class="detail-header">
-      <el-button @click="$router.go(-1)" icon="el-icon-arrow-left">返回</el-button>
+      <el-button @click="$router.go(-1)"><el-icon><Back /></el-icon>返回</el-button>
       <h2>模拟面试详情</h2>
     </div>
 

@@ -3,7 +3,7 @@
     <!-- 短视频投稿说明 -->
     <div class="short-video-tip">
       <el-alert
-        title="仅支持3分钟以内短视频，文件大小不超过150M。建议横屏16:9比例，内容简明有趣。"
+        title="仅支持5分钟以内短视频，文件大小不超过150M。建议横屏16:9比例，内容简明有趣。"
         type="info"
         show-icon
         :closable="false"
@@ -101,7 +101,7 @@
           <template #tip>
             <div class="upload-tip">
               <p>支持格式：MP4、AVI、MOV、WMV、FLV、WebM</p>
-              <p>文件大小：不超过150MB，时长不超过3分钟</p>
+              <p>文件大小：不超过150MB，时长不超过5分钟</p>
               <p>建议分辨率：1280x720或1920x1080</p>
             </div>
           </template>
@@ -274,7 +274,7 @@ const rules = {
   ],
   duration: [
     { required: true, message: '请填写视频时长', trigger: 'blur' },
-    { type: 'number', min: 1, max: 180, message: '视频时长需在1-180秒内', trigger: 'blur' }
+    { type: 'number', min: 1, max: 300, message: '视频时长需在1-300秒内', trigger: 'blur' }
   ],
   agree: [
     { 
@@ -347,14 +347,14 @@ function getVideoDuration(file) {
   video.onloadedmetadata = () => {
     // 读取时长（秒，向上取整）
     const duration = Math.ceil(video.duration)
-    if (duration && duration <= 180) {
+    if (duration && duration <= 300) {
       form.duration = duration
       durationAuto.value = true
     } else {
-      // 超过3分钟或无法识别
+      // 超过5分钟或无法识别
       form.duration = null
       durationAuto.value = false
-      ElMessage.warning('视频时长超过3分钟或无法识别，请选择合规视频或手动填写时长！')
+      ElMessage.warning('视频时长超过5分钟或无法识别，请选择合规视频或手动填写时长！')
     }
     URL.revokeObjectURL(url)
   }

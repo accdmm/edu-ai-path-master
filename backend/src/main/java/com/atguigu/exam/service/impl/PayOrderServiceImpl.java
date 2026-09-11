@@ -23,7 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.util.Date;
@@ -37,6 +37,9 @@ import java.util.Map;
 @Slf4j
 @Service
 public class PayOrderServiceImpl implements PayOrderService {
+
+    /** 订单创建超过该时长且支付宝侧不存在交易，视为超时关闭 */
+    private static final long ORDER_TIMEOUT_MS = 2 * 60 * 60 * 1000L;
 
     private static final Map<String, BigDecimal> PRICES = Map.of(
             "normal", new BigDecimal("9.90"),
@@ -59,6 +62,9 @@ public class PayOrderServiceImpl implements PayOrderService {
     private UserCreditMapper userCreditMapper;
     @Autowired
     private CreditRecordMapper creditRecordMapper;
+
+    @Autowired
+    private TransactionTemplate transactionTemplate;
 
     @Value("${alipay.app-id}")
     private String alipayAppId;
@@ -141,6 +147,15 @@ public class PayOrderServiceImpl implements PayOrderService {
                 if (settled != null) {
                     data.putAll(settled);
                 }
+            } else if (resp.isSuccess() && "TRADE_CLOSED".equals(resp.getTradeStatus())) {
+                // 支付宝侧已关闭/退款终态 → 同步关单
+                closeOrder(order.getId());
+                data.put("status", "CLOSED");
+            } else if (!resp.isSuccess() && order.getCreateTime() != null
+                    && System.currentTimeMillis() - order.getCreateTime().getTime() > ORDER_TIMEOUT_MS) {
+                // 支付宝查无此交易且本地订单已超时 → 超时关单
+                closeOrder(order.getId());
+                data.put("status", "CLOSED");
             } else {
                 data.put("status", order.getStatus());
             }
@@ -197,10 +212,13 @@ public class PayOrderServiceImpl implements PayOrderService {
                 return "failure";
             }
             if ("TRADE_SUCCESS".equals(tradeStatus) || "TRADE_FINISHED".equals(tradeStatus)) {
-                order.setStatus("PAID");
                 order.setTradeNo(params.get("trade_no"));
                 order.setNotifyTime(new Date());
                 settle(order.getId(), order.getTradeNo(), new Date());
+            } else if ("TRADE_CLOSED".equals(tradeStatus)) {
+                // 交易关闭（未付款关闭/退款终态）→ 幂等关单，不再发放权益
+                closeOrder(order.getId());
+                log.info("支付宝回调关单 orderNo={} tradeNo={}", orderNo, params.get("trade_no"));
             }
             return "success";
         } catch (Exception e) {
@@ -211,9 +229,13 @@ public class PayOrderServiceImpl implements PayOrderService {
 
     /**
      * 结算：幂等地将订单置为已支付，并生成绑定用户的邀请码 + 发放积分
+     * 用 TransactionTemplate 编程式事务（@Transactional 经 this 自调用会失效）
      */
-    @Transactional(rollbackFor = Exception.class)
     protected Map<String, Object> settle(Long orderId, String tradeNo, Date payTime) {
+        return transactionTemplate.execute(tx -> doSettle(orderId, tradeNo, payTime));
+    }
+
+    private Map<String, Object> doSettle(Long orderId, String tradeNo, Date payTime) {
         int rows = payOrderMapper.update(null, new LambdaUpdateWrapper<PayOrder>()
                 .eq(PayOrder::getId, orderId)
                 .eq(PayOrder::getStatus, "CREATED")
@@ -271,5 +293,13 @@ public class PayOrderServiceImpl implements PayOrderService {
         data.put("productType", productType);
         data.put("activeCredits", credit.getActiveCredits());
         return data;
+    }
+
+    /** 幂等关单：仅 CREATED 可关为 CLOSED，已支付订单不受影响 */
+    private void closeOrder(Long orderId) {
+        payOrderMapper.update(null, new LambdaUpdateWrapper<PayOrder>()
+                .eq(PayOrder::getId, orderId)
+                .eq(PayOrder::getStatus, "CREATED")
+                .set(PayOrder::getStatus, "CLOSED"));
     }
 }

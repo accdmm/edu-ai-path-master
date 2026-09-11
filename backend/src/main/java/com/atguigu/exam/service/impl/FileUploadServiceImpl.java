@@ -68,7 +68,7 @@ public class FileUploadServiceImpl implements FileUploadService {
         //uploadObject .上传文件数据 .filename(文件的磁盘地址 c:\\)
         minioClient.putObject(PutObjectArgs.builder()
                         .bucket(minioProperties.getBucketName())
-                        .contentType(file.getContentType())
+                        .contentType(resolveContentType(file))
                         .object(objectName) //对象
                         .stream(file.getInputStream(),file.getSize(),-1) //-1 我们不指定文件切割大小！让minio自动处理！
                 .build());
@@ -77,5 +77,61 @@ public class FileUploadServiceImpl implements FileUploadService {
         String url = String.join("/", minioProperties.getEndpoint(), minioProperties.getBucketName(), objectName);
         log.info("文件上传核心业务，完成{}文件上传，返回地址为：{}",objectName,url);
         return url;
+    }
+
+    /**
+     * 兜底解析 Content-Type：部分客户端（如 curl/低版本浏览器）对 mp4/jpg 传 application/octet-stream，
+     * 会导致 MinIO 回显 URL 播放时类型不准确，按扩展名纠正，保证视频/图片可正常播放展示。
+     */
+    private String resolveContentType(MultipartFile file) {
+        String contentType = file.getContentType();
+        if (contentType != null && !contentType.isEmpty()
+                && !"application/octet-stream".equalsIgnoreCase(contentType)) {
+            return contentType;
+        }
+        String name = file.getOriginalFilename();
+        if (name == null) {
+            return contentType == null || contentType.isEmpty() ? "application/octet-stream" : contentType;
+        }
+        String lower = name.toLowerCase();
+        if (lower.endsWith(".mp4")) return "video/mp4";
+        if (lower.endsWith(".webm")) return "video/webm";
+        if (lower.endsWith(".avi")) return "video/x-msvideo";
+        if (lower.endsWith(".mov")) return "video/quicktime";
+        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+        if (lower.endsWith(".png")) return "image/png";
+        if (lower.endsWith(".gif")) return "image/gif";
+        if (lower.endsWith(".webp")) return "image/webp";
+        return "application/octet-stream";
+    }
+
+    @Override
+    public void deleteFile(String url) {
+        if (url == null || url.isBlank()) {
+            return;
+        }
+        try {
+            java.net.URI uri = new java.net.URI(url);
+            String path = uri.getPath();
+            if (path == null || path.length() <= 1) {
+                return;
+            }
+            String p = path.startsWith("/") ? path.substring(1) : path;
+            int idx = p.indexOf('/');
+            if (idx <= 0) {
+                // 仅 bucket 无 object，无可删对象
+                return;
+            }
+            String bucket = p.substring(0, idx);
+            String object = p.substring(idx + 1);
+            minioClient.removeObject(RemoveObjectArgs.builder()
+                    .bucket(bucket)
+                    .object(object)
+                    .build());
+            log.info("已删除 MinIO 文件：{}/{}", bucket, object);
+        } catch (Exception e) {
+            // 存储删除失败不影响业务记录删除，仅记录日志
+            log.warn("删除 MinIO 文件失败（不影响业务）：url={}，原因：{}", url, e.getMessage());
+        }
     }
 }

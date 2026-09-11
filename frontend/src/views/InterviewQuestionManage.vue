@@ -89,11 +89,11 @@
           </template>
         </el-table-column>
         <el-table-column prop="createdTime" label="创建时间" width="180"></el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="操作" width="240" fixed="right">
           <template #default="scope">
-            <el-button size="small" @click="viewQuestion(scope.row)">查看</el-button>
-            <el-button size="small" type="primary" @click="editQuestion(scope.row)">编辑</el-button>
-            <el-button size="small" type="danger" @click="deleteQuestion(scope.row)">删除</el-button>
+            <el-button size="small" @click="viewQuestion(scope.row)" icon="View">查看</el-button>
+            <el-button size="small" type="primary" @click="editQuestion(scope.row)" icon="Edit">编辑</el-button>
+            <el-button size="small" type="danger" @click="deleteQuestion(scope.row)" icon="Delete">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -239,12 +239,8 @@
           <span class="value">{{ viewQuestionData.categoryName }}</span>
         </div>
         <div class="detail-row">
-          <span class="label">类型：</span>
-          <span class="value">
-            <el-tag :type="getQuestionTypeColor(viewQuestionData.questionType)">
-              {{ getQuestionTypeText(viewQuestionData.questionType) }}
-            </el-tag>
-          </span>
+          <span class="label">技术方向：</span>
+          <span class="value">{{ viewQuestionData.direction || '-' }}</span>
         </div>
         <div class="detail-row">
           <span class="label">难度：</span>
@@ -262,21 +258,9 @@
           <span class="label">参考答案：</span>
           <div class="value content">{{ viewQuestionData.answer }}</div>
         </div>
-        <div class="detail-row" v-if="viewQuestionData.analysis">
-          <span class="label">题目解析：</span>
-          <div class="value content">{{ viewQuestionData.analysis }}</div>
-        </div>
-        <div class="detail-row" v-if="viewQuestionData.tags">
-          <span class="label">标签：</span>
-          <span class="value">{{ viewQuestionData.tags }}</span>
-        </div>
         <div class="detail-row">
           <span class="label">查看次数：</span>
           <span class="value">{{ viewQuestionData.viewCount }}</span>
-        </div>
-        <div class="detail-row">
-          <span class="label">点赞数：</span>
-          <span class="value">{{ viewQuestionData.likeCount }}</span>
         </div>
         <div class="detail-row">
           <span class="label">状态：</span>
@@ -288,7 +272,7 @@
         </div>
         <div class="detail-row">
           <span class="label">创建时间：</span>
-          <span class="value">{{ viewQuestionData.createdTime }}</span>
+          <span class="value">{{ viewQuestionData.createTime }}</span>
         </div>
       </div>
       <template #footer>

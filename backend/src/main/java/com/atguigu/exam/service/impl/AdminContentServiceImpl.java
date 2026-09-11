@@ -120,6 +120,103 @@ public class AdminContentServiceImpl implements AdminContentService {
     }
 
     @Override
+    public Result<Map<String, Object>> pageCompanies(Integer page, Integer size, String keyword) {
+        try {
+            Page<InterviewCompany> pageObj = new Page<>(page == null ? 1 : page, size == null ? 10 : size);
+            LambdaQueryWrapper<InterviewCompany> wrapper = new LambdaQueryWrapper<>();
+            if (keyword != null && !keyword.isBlank()) {
+                wrapper.like(InterviewCompany::getName, keyword);
+            }
+            wrapper.orderByDesc(InterviewCompany::getTotalQuestions);
+            IPage<InterviewCompany> result = companyMapper.selectPage(pageObj, wrapper);
+            List<Map<String, Object>> records = result.getRecords().stream().map(c -> {
+                Map<String, Object> m = new HashMap<>();
+                m.put("id", c.getId());
+                m.put("name", c.getName());
+                m.put("logo", c.getLogo());
+                m.put("description", c.getDescription());
+                m.put("isPremium", c.getIsPremium());
+                m.put("totalQuestions", c.getTotalQuestions());
+                m.put("createTime", c.getCreateTime());
+                return m;
+            }).toList();
+            Map<String, Object> data = new HashMap<>();
+            data.put("records", records);
+            data.put("total", result.getTotal());
+            return Result.success(data);
+        } catch (Exception e) {
+            log.error("分页查询企业失败", e);
+            return Result.error("分页查询企业失败");
+        }
+    }
+
+    @Override
+    public Result<Map<String, Object>> companyDetail(Long id) {
+        try {
+            InterviewCompany c = companyMapper.selectById(id);
+            if (c == null) {
+                return Result.error(404, "企业不存在");
+            }
+            Map<String, Object> m = new HashMap<>();
+            m.put("id", c.getId());
+            m.put("name", c.getName());
+            m.put("logo", c.getLogo());
+            m.put("description", c.getDescription());
+            m.put("isPremium", c.getIsPremium());
+            m.put("totalQuestions", c.getTotalQuestions());
+            return Result.success(m);
+        } catch (Exception e) {
+            log.error("查询企业详情失败 id={}", id, e);
+            return Result.error("查询企业详情失败");
+        }
+    }
+
+    @Override
+    public Result<Map<String, Object>> createCompany(InterviewCompany company) {
+        try {
+            if (company.getName() == null || company.getName().isBlank()) {
+                return Result.error("企业名称不能为空");
+            }
+            if (company.getTotalQuestions() == null) company.setTotalQuestions(0);
+            if (company.getIsPremium() == null) company.setIsPremium(false);
+            companyMapper.insert(company);
+            Map<String, Object> m = new HashMap<>();
+            m.put("id", company.getId());
+            return Result.success(m);
+        } catch (Exception e) {
+            log.error("新增企业失败", e);
+            return Result.error("新增企业失败：" + e.getMessage());
+        }
+    }
+
+    @Override
+    public Result<Map<String, Object>> updateCompany(Long id, InterviewCompany company) {
+        try {
+            InterviewCompany exist = companyMapper.selectById(id);
+            if (exist == null) {
+                return Result.error("企业不存在");
+            }
+            company.setId(id);
+            companyMapper.updateById(company);
+            return Result.success(Map.of("id", id));
+        } catch (Exception e) {
+            log.error("编辑企业失败", e);
+            return Result.error("编辑企业失败：" + e.getMessage());
+        }
+    }
+
+    @Override
+    public Result<Void> deleteCompany(Long id) {
+        try {
+            companyMapper.deleteById(id);
+            return Result.success(null);
+        } catch (Exception e) {
+            log.error("删除企业失败", e);
+            return Result.error("删除企业失败：" + e.getMessage());
+        }
+    }
+
+    @Override
     public Result<List<Map<String, Object>>> listCategories(Long companyId) {
         try {
             LambdaQueryWrapper<InterviewQuestionCategory> wrapper = new LambdaQueryWrapper<>();
@@ -131,6 +228,9 @@ public class AdminContentServiceImpl implements AdminContentService {
                 m.put("id", c.getId());
                 m.put("name", c.getName());
                 m.put("direction", c.getDirection());
+                m.put("difficulty", c.getDifficulty());
+                m.put("year", c.getYear());
+                m.put("questionCount", c.getQuestionCount());
                 m.put("companyId", c.getCompanyId());
                 return m;
             }).toList();

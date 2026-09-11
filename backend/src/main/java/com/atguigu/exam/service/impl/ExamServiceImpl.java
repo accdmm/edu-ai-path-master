@@ -168,17 +168,34 @@ public class ExamServiceImpl extends ServiceImpl<ExamRecordMapper, ExamRecord> i
     @Override
     public void customSubmitAnswer(Integer examRecordId, List<SubmitAnswerVo> answers) throws InterruptedException {
         //宏观： 提交答案中间表保存  修改考试记录数据（已完成 ，结束时间）  投递判卷任务（异步）
+        //0. 幂等校验：仅"进行中"的考试可交卷，防止重复交卷重复判卷/重复计费
+        ExamRecord current = getById(examRecordId);
+        if (current == null) {
+            throw new RuntimeException("考试记录不存在！");
+        }
+        if ("判卷中".equals(current.getStatus())) {
+            throw new RuntimeException("试卷正在判卷中，请勿重复提交！");
+        }
+        if ("已批阅".equals(current.getStatus())) {
+            throw new RuntimeException("该考试已完成并批阅，不能重复交卷！");
+        }
         //1.中间表保存问题
         if (!ObjectUtils.isEmpty(answers)) {
             List<AnswerRecord> answerRecordList = answers.stream().map(vo -> new AnswerRecord(examRecordId, vo.getQuestionId(), vo.getUserAnswer()))
                     .collect(Collectors.toList());
             answerRecordService.saveBatch(answerRecordList);
         }
-        //2. 暂时修改下考试记录状态（状态 -》 判卷中 || 结束时间 - 设置）
+        //2. 暂时修改下考试记录状态（状态 -》 判卷中 || 结束时间 - 设置），条件更新防重复触发
         ExamRecord examRecord = getById(examRecordId);
         examRecord.setEndTime(LocalDateTime.now());
         examRecord.setStatus("判卷中");
-        updateById(examRecord);
+        boolean updated = update(examRecord,
+                new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<ExamRecord>()
+                        .eq(ExamRecord::getId, examRecordId)
+                        .eq(ExamRecord::getStatus, "进行中"));
+        if (!updated) {
+            throw new RuntimeException("考试状态已变化，请勿重复交卷！");
+        }
 
         //3.投递判卷任务到 Redis Stream，由 ExamGradingWorker 异步消费，提交接口立即返回
         try {
@@ -197,6 +214,11 @@ public class ExamServiceImpl extends ServiceImpl<ExamRecordMapper, ExamRecord> i
         //宏观：  获取考试记录相关的信息（考试记录对象 考试记录答题记录 考试对应试卷）
         //  进行循环判断（1.答题记录进行修改 2.总体提到总分数 总正确数量）  修改考试记录（状态 -》 已批阅  修改 -》 总分数）   进行ai评语生成（总正确的题目数量）
         //  修改考试记录表  返回考试记录对象
+        //0. 幂等：已批阅的记录直接返回现有结果，避免重复判卷/重复计费
+        ExamRecord existed = getById(examRecordId);
+        if (existed != null && "已批阅".equals(existed.getStatus())) {
+            return customGetExamRecordById(examRecordId);
+        }
         //1.获取考试记录和相关的信息（试卷和答题记录）
         ExamRecord examRecord = customGetExamRecordById(examRecordId);
         Paper paper = examRecord.getPaper();
@@ -389,6 +411,16 @@ public class ExamServiceImpl extends ServiceImpl<ExamRecordMapper, ExamRecord> i
     @Override
     public List<ExamRankingVO> customGetRanking(Integer paperId, Integer limit) {
         return examRecordMapper.customQueryRanking(paperId,limit);
+    }
+
+    @Override
+    public List<ExamRecord> customGetMyRecords(Long userId) {
+        if (userId == null) {
+            return List.of();
+        }
+        return list(new LambdaQueryWrapper<ExamRecord>()
+                .eq(ExamRecord::getUserId, userId)
+                .orderByDesc(ExamRecord::getStartTime));
     }
 
 

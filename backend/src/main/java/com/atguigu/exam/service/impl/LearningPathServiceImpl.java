@@ -24,6 +24,7 @@ import com.atguigu.exam.mapper.UserPaperMapper;
 import com.atguigu.exam.service.LearningPathService;
 import com.atguigu.exam.service.PaperQuestionService;
 import com.atguigu.exam.service.PaperService;
+import com.atguigu.exam.service.UserDiagnosisService;
 import com.atguigu.exam.service.UserPaperService;
 import com.atguigu.exam.vo.LearningPathDetailVo;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -126,6 +127,9 @@ public class LearningPathServiceImpl implements LearningPathService {
     private PlatformTransactionManager transactionManager;
 
     @Autowired
+    private UserDiagnosisService userDiagnosisService;
+
+    @Autowired
     @Qualifier("paperChatModel")
     private ChatLanguageModel paperChatModel;
 
@@ -150,7 +154,7 @@ public class LearningPathServiceImpl implements LearningPathService {
         }
 
         // 2. 诊断聚合（快速查询，同步完成）：无答题数据时引导先考诊断卷
-        List<LearningPathDetailVo.DiagnosisItemVo> diagnosis = buildDiagnosis(userId);
+        List<LearningPathDetailVo.DiagnosisItemVo> diagnosis = userDiagnosisService.buildDiagnosis(userId);
         if (diagnosis.isEmpty()) {
             throw new RuntimeException("暂无答题数据，请先完成一次考试或练习，AI 才能诊断薄弱点并规划学习路径");
         }
@@ -482,71 +486,6 @@ public class LearningPathServiceImpl implements LearningPathService {
     }
 
     /**
-     * 诊断聚合：与学习分析页同口径（已出分考试 → 答题记录 → 按题目分类聚合得分率）
-     * 返回按得分率升序（最薄弱在前）
-     */
-    private List<LearningPathDetailVo.DiagnosisItemVo> buildDiagnosis(Long userId) {
-        List<ExamRecord> examRecords = examRecordMapper.selectList(
-                new LambdaQueryWrapper<ExamRecord>()
-                        .eq(ExamRecord::getUserId, userId)
-                        .isNotNull(ExamRecord::getScore));
-        if (examRecords.isEmpty()) {
-            return new ArrayList<>();
-        }
-        Set<Long> examRecordIds = examRecords.stream()
-                .map(ExamRecord::getId).filter(Objects::nonNull).collect(Collectors.toSet());
-        List<AnswerRecord> answerRecords = answerRecordMapper.selectList(
-                new LambdaQueryWrapper<AnswerRecord>()
-                        .in(AnswerRecord::getExamRecordId, examRecordIds));
-        if (answerRecords.isEmpty()) {
-            return new ArrayList<>();
-        }
-
-        Map<Long, Question> questionMap = buildQuestionMap(answerRecords);
-        Map<String, int[]> masteryMap = new LinkedHashMap<>();
-        Map<Long, Category> categoryCache = new HashMap<>();
-        for (AnswerRecord record : answerRecords) {
-            if (record.getQuestionId() == null) {
-                continue;
-            }
-            Question question = questionMap.get(record.getQuestionId().longValue());
-            if (question == null) {
-                continue;
-            }
-            Long categoryId = question.getCategoryId();
-            if (categoryId == null) {
-                categoryId = 0L;
-            }
-            Category category = categoryCache.get(categoryId);
-            if (category == null) {
-                category = categoryId == 0L ? null : categoryMapper.selectById(categoryId);
-                categoryCache.put(categoryId, category);
-            }
-            String categoryName = category != null && category.getName() != null
-                    ? normalizeName(category.getName()) : "未分类";
-            int[] agg = masteryMap.computeIfAbsent(categoryName, k -> new int[3]);
-            agg[0]++; // answerCount
-            agg[1] += record.getScore() == null ? 0 : record.getScore(); // earned
-            agg[2] += question.getScore() == null ? 0 : question.getScore(); // max
-        }
-
-        List<LearningPathDetailVo.DiagnosisItemVo> result = new ArrayList<>();
-        for (Map.Entry<String, int[]> entry : masteryMap.entrySet()) {
-            int[] agg = entry.getValue();
-            if (agg[2] <= 0) {
-                continue;
-            }
-            LearningPathDetailVo.DiagnosisItemVo item = new LearningPathDetailVo.DiagnosisItemVo();
-            item.setCategoryName(entry.getKey());
-            item.setAnswerCount(agg[0]);
-            item.setCorrectRate(Math.round(agg[1] * 100f / agg[2]));
-            result.add(item);
-        }
-        result.sort(Comparator.comparingInt(LearningPathDetailVo.DiagnosisItemVo::getCorrectRate));
-        return result;
-    }
-
-    /**
      * 试卷候选：PUBLISHED 公开卷 + 用户自己的卷（user_paper 关联，含 DRAFT AI 卷）
      */
     private List<Paper> findPaperCandidates(Long userId) {
@@ -731,29 +670,8 @@ public class LearningPathServiceImpl implements LearningPathService {
     }
 
     /**
-     * 查询答题记录涉及的全部题目，构建题目ID -> 题目映射
+     * 截断长文本到指定长度
      */
-    private Map<Long, Question> buildQuestionMap(List<AnswerRecord> answerRecords) {
-        Set<Long> questionIds = answerRecords.stream()
-                .map(AnswerRecord::getQuestionId).filter(Objects::nonNull)
-                .map(Long::valueOf).collect(Collectors.toSet());
-        if (questionIds.isEmpty()) {
-            return new HashMap<>();
-        }
-        return questionMapper.selectBatchIds(questionIds).stream()
-                .collect(Collectors.toMap(Question::getId, q -> q, (a, b) -> a));
-    }
-
-    /**
-     * 清洗展示文本：去除 markdown 强调符并压缩空白，空值回退"未分类"
-     */
-    private String normalizeName(String name) {
-        if (name == null || name.trim().isEmpty()) {
-            return "未分类";
-        }
-        return name.replaceAll("[*_#`~]+", " ").replaceAll("\\s+", " ").trim();
-    }
-
     private String trimTo(String text, int limit) {
         if (text == null) {
             return null;

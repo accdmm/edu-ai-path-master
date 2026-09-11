@@ -60,10 +60,10 @@
         <el-table-column prop="viewCount" label="观看次数" width="100" />
         <el-table-column prop="likeCount" label="点赞数" width="80" />
         <el-table-column prop="createdAt" label="创建时间" width="180" />
-        <el-table-column label="操作" width="300" fixed="right">
+        <el-table-column label="操作" width="360" fixed="right">
           <template #default="scope">
-            <el-button size="small" @click="previewVideo(scope.row)" icon="VideoPlay">预览</el-button>
-            <el-button size="small" @click="editVideo(scope.row)" icon="Edit">编辑</el-button>
+            <el-button size="small" @click="previewVideo(scope.row)" icon="View">预览</el-button>
+            <el-button size="small" type="primary" @click="editVideo(scope.row)" icon="Edit">编辑</el-button>
             <el-button v-if="scope.row.status === 0" size="small" type="success" @click="auditVideoAction(scope.row, 1)" icon="Check">通过</el-button>
             <el-button v-if="scope.row.status === 0" size="small" type="warning" @click="showRejectDialog(scope.row)" icon="Close">拒绝</el-button>
             <el-button v-if="scope.row.status === 1" size="small" type="warning" @click="offlineVideoAction(scope.row)" icon="Bottom">下架</el-button>
@@ -104,7 +104,7 @@
           <div class="duration-input-wrapper">
             <el-input-number v-model="uploadForm.duration" :min="1" placeholder="例如：300" style="width: 200px;" />
             <span class="duration-unit">秒</span>
-            <div class="duration-tips"><el-text type="info" size="small">请输入视频时长（秒），例如：5分钟 = 300秒，1小时 = 3600秒</el-text></div>
+            <div class="duration-tips"><el-text type="info" size="small">自动识别视频时长，仅支持 5 分钟（300 秒）以内的视频</el-text></div>
           </div>
         </el-form-item>
         <el-form-item label="视频文件" prop="videoFile">
@@ -169,6 +169,7 @@ const categoryTree = ref([])
 const categoryPath = ref([])
 const uploadDialogVisible = ref(false)
 const uploading = ref(false)
+const MAX_DURATION = 300 // 视频时长上限（秒）：5 分钟
 const uploadFormRef = ref()
 const videoUploadRef = ref()
 const coverUploadRef = ref()
@@ -177,6 +178,7 @@ const uploadRules = {
   title: [{ required: true, message: '请输入视频标题', trigger: 'blur' }],
   categoryId: [{ required: true, message: '请选择分类', trigger: 'change' }],
   uploaderName: [{ required: true, message: '请输入上传者名称', trigger: 'blur' }],
+  duration: [{ required: true, message: '请上传视频文件以自动识别时长', trigger: 'change' }],
   videoFile: [{ required: true, message: '请上传视频文件', trigger: 'change' }]
 }
 const previewDialogVisible = ref(false)
@@ -229,8 +231,15 @@ const handleVideoFileChange = (file) => {
   video.src = url
   video.onloadedmetadata = () => {
     const duration = Math.ceil(video.duration)
-    if (duration) uploadForm.duration = duration
     URL.revokeObjectURL(url)
+    if (duration > MAX_DURATION) {
+      uploadForm.duration = null
+      uploadForm.videoFile = null
+      if (videoUploadRef.value) videoUploadRef.value.clearFiles()
+      ElMessage.error(`视频时长 ${duration} 秒，超过 5 分钟（300 秒）上限，请上传 5 分钟以内的视频`)
+      return
+    }
+    if (duration) uploadForm.duration = duration
   }
   video.onerror = () => { uploadForm.duration = null; URL.revokeObjectURL(url); }
 }
