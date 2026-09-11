@@ -8,6 +8,7 @@ import com.atguigu.exam.entity.Paper;
 import com.atguigu.exam.entity.PaperQuestion;
 import com.atguigu.exam.entity.Question;
 import com.atguigu.exam.entity.UserCredit;
+import com.atguigu.exam.entity.UserPaper;
 import com.atguigu.exam.mapper.CreditRecordMapper;
 import com.atguigu.exam.mapper.ExamRecordMapper;
 import com.atguigu.exam.mapper.PaperMapper;
@@ -17,6 +18,7 @@ import com.atguigu.exam.service.MockInterviewAiService;
 import com.atguigu.exam.service.PaperQuestionService;
 import com.atguigu.exam.service.PaperService;
 import com.atguigu.exam.service.UserPaperService;
+import com.atguigu.exam.utils.UserContextUtil;
 import com.atguigu.exam.vo.AiPaperVo;
 import com.atguigu.exam.vo.PaperVo;
 import com.atguigu.exam.vo.RuleVo;
@@ -71,6 +73,9 @@ public class PaperServiceImpl extends ServiceImpl<PaperMapper, Paper> implements
     @Autowired
     private MockInterviewAiService mockInterviewAiService;
 
+    @Autowired
+    private UserContextUtil userContextUtil;
+
     /**
      * 根据试卷id试卷详情（带访问权限校验）
      * 发布(PUBLISHED)试卷所有人可看；草稿(DRAFT)试卷仅归属用户可见
@@ -84,10 +89,9 @@ public class PaperServiceImpl extends ServiceImpl<PaperMapper, Paper> implements
         if (paper == null) {
             throw new RuntimeException("指定id:%s试卷已经被删除，无法查看详情！".formatted(id));
         }
-        // 私有草稿卷权限校验：AI 生成卷(DRAFT)仅本人可见
+        // 私有草稿卷权限校验：AI 生成卷(DRAFT)仅本人可见；管理员放行（后台编辑/审核场景）
         if (!"PUBLISHED".equals(paper.getStatus())) {
-            boolean allowed = userPaperService.existRelation(userId, id);
-            if (!allowed) {
+            if (!userContextUtil.isAdmin() && !userPaperService.existRelation(userId, id)) {
                 throw new RuntimeException("该试卷为私有试卷，您无权访问！");
             }
         }
@@ -130,21 +134,17 @@ public class PaperServiceImpl extends ServiceImpl<PaperMapper, Paper> implements
     }
 
     @Override
-    public Paper customCreatePaper(PaperVo paperVo) {
+    public Paper customCreatePaper(PaperVo paperVo, Long userId) {
+        //0. 拒绝空卷：没有题目的试卷无法进行考试
+        if (ObjectUtils.isEmpty(paperVo.getQuestions())) {
+            throw new RuntimeException("试卷至少需要选择一道题目，无法创建空试卷！");
+        }
         //1. 完善试卷内信息 名字 描述 时间  -> 状态 ，总题目数 ， 总分数
         Paper paper = new Paper();
         //名字 描述 时间
         BeanUtils.copyProperties(paperVo,paper);
         //态 ，总题目数, 总分数
         paper.setStatus("DRAFT");
-        if (ObjectUtils.isEmpty(paperVo.getQuestions())){
-            //本次没选题目
-            paper.setTotalScore(BigDecimal.ZERO);
-            paper.setQuestionCount(0);
-            save(paper);
-            log.warn("本次{}组卷，没有选择题目！注意没有题目的试卷无法进行考试！！",paper);
-            return paper;
-        }
         /*
            状态默认值： DRAFT
            总题目数： question长度
@@ -162,6 +162,14 @@ public class PaperServiceImpl extends ServiceImpl<PaperMapper, Paper> implements
 
         //4. 中间表的批量插入
         paperQuestionService.saveBatch(paperQuestionList);
+        //5. 记录创建者归属：手动组卷的 DRAFT 卷对创建者可见可考（管理员全量放行）
+        if (userId != null) {
+            UserPaper userPaper = new UserPaper();
+            userPaper.setUserId(userId);
+            userPaper.setPaperId(paper.getId());
+            userPaper.setRelationType(UserPaperServiceImpl.RELATION_MANUAL);
+            userPaperService.save(userPaper);
+        }
         return paper;
     }
 
@@ -222,6 +230,10 @@ public class PaperServiceImpl extends ServiceImpl<PaperMapper, Paper> implements
     @Override
     public Paper customUpdatePaper(Integer id, PaperVo paperVo) {
 
+        //0. 空卷防护：至少保留一道题目（否则后续取题目分值会 NPE，且生成无法考试的空卷）
+        if (ObjectUtils.isEmpty(paperVo.getQuestions())) {
+            throw new RuntimeException("试卷至少需要保留一道题目，无法更新为空试卷！");
+        }
         //1.校验 （不能发布状态 ， 不能不同id,name相同）
         Paper paper = getById(id);
         if ("PUBLISHED".equals(paper.getStatus())){
@@ -294,6 +306,8 @@ public class PaperServiceImpl extends ServiceImpl<PaperMapper, Paper> implements
         removeById(Long.valueOf(id));
         //4.删除中间表
         paperQuestionService.remove(new LambdaQueryWrapper<PaperQuestion>().eq(PaperQuestion::getPaperId,id));
+        //5.清理用户-试卷归属关联，避免“我的AI试卷”出现悬空数据
+        userPaperService.remove(new LambdaQueryWrapper<UserPaper>().eq(UserPaper::getPaperId, id));
     }
 
     //给与类型赋值

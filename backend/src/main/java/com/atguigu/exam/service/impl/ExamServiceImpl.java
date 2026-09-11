@@ -14,6 +14,7 @@ import com.atguigu.exam.service.ExamService;
 import com.atguigu.exam.service.KimiAiService;
 import com.atguigu.exam.service.PaperService;
 import com.atguigu.exam.service.UserPaperService;
+import com.atguigu.exam.utils.ExamTimePolicy;
 import com.atguigu.exam.utils.UserContextUtil;
 import com.atguigu.exam.vo.ExamRankingVO;
 import com.atguigu.exam.vo.GradingResult;
@@ -36,6 +37,7 @@ import java.time.ZoneId;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -114,8 +116,18 @@ public class ExamServiceImpl extends ServiceImpl<ExamRecordMapper, ExamRecord> i
         lambdaQueryWrapper.eq(ExamRecord::getStatus,"进行中");
         ExamRecord examRecord = getOne(lambdaQueryWrapper);
         if (examRecord != null) {
-            log.debug("{}在当前试卷：{}有未完成考试记录！直接返回了！", startExamVo.getStudentName(), startExamVo.getPaperId());
-            return examRecord;
+            // 超时未交卷的遗留“进行中”记录：按 0 分自动归档，避免旧记录把学生卡死在无法交卷的状态
+            if (ExamTimePolicy.isOvertime(examRecord.getStartTime(), paper.getDuration(), LocalDateTime.now())) {
+                examRecord.setStatus("已批阅");
+                examRecord.setScore(0);
+                examRecord.setEndTime(LocalDateTime.now());
+                examRecord.setAnswers("考试超时未交卷，系统自动结束，按 0 分归档。");
+                updateById(examRecord);
+                log.info("考试记录{}已超时未交卷，自动归档后为学生{}新建考试。", examRecord.getId(), startExamVo.getStudentName());
+            } else {
+                log.debug("{}在当前试卷：{}有未完成考试记录！直接返回了！", startExamVo.getStudentName(), startExamVo.getPaperId());
+                return examRecord;
+            }
         }
         //2. 创建新的考试记录！赋予传入的参数（学生姓名，试卷id） 补全（状态，时间，切屏数）
         examRecord = new ExamRecord();
@@ -150,19 +162,33 @@ public class ExamServiceImpl extends ServiceImpl<ExamRecordMapper, ExamRecord> i
         lambdaQueryWrapper.eq(AnswerRecord::getExamRecordId,id);
         List<AnswerRecord> answerRecords = answerRecordService.list(lambdaQueryWrapper);
         if (!ObjectUtils.isEmpty(answerRecords)){
-            //[8,2,1,3,7,4] -> 题目id
-            List<Long> questionIdList = paper.getQuestions().stream().map(Question::getId).collect(Collectors.toList());
-            //[{questionId:1} -> 2 ,{questionId:2} -> 1 ,{questionId:3} -> 3,{questionId:4} ->5,{questionId:7} -> 4,{questionId:8} -> 0]
-            answerRecords.sort((o1, o2) -> {
-                int x = questionIdList.indexOf(o1.getQuestionId());
-                int y = questionIdList.indexOf(o2.getQuestionId());
-                return Integer.compare(o1.getQuestionId(),o2.getQuestionId());
-            });
+            //[8,2,1,3,7,4] -> 题目id（试卷内顺序）
+            //按试卷内的题目顺序排列答题记录，保证成绩单题序与卷面一致
+            sortAnswerRecordsByPaper(answerRecords, paper.getQuestions());
         }
         //4. 数据组装即可
         examRecord.setPaper(paper);
         examRecord.setAnswerRecords(answerRecords);
         return examRecord;
+    }
+
+    /**
+     * 按试卷内的题目顺序排列答题记录（未出现在卷内的题目排最后，保持稳定排序），
+     * 保证成绩单/结果页的题序与考试时的卷面一致
+     */
+    static void sortAnswerRecordsByPaper(List<AnswerRecord> answerRecords, List<Question> paperQuestions) {
+        Map<Long, Integer> indexOfQuestion = new HashMap<>();
+        if (paperQuestions != null) {
+            for (int i = 0; i < paperQuestions.size(); i++) {
+                Question q = paperQuestions.get(i);
+                if (q != null && q.getId() != null) {
+                    indexOfQuestion.putIfAbsent(q.getId(), i);
+                }
+            }
+        }
+        answerRecords.sort(Comparator.comparingInt(r ->
+                r.getQuestionId() == null ? Integer.MAX_VALUE
+                        : indexOfQuestion.getOrDefault(r.getQuestionId().longValue(), Integer.MAX_VALUE)));
     }
 
     @Override
@@ -178,6 +204,13 @@ public class ExamServiceImpl extends ServiceImpl<ExamRecordMapper, ExamRecord> i
         }
         if ("已批阅".equals(current.getStatus())) {
             throw new RuntimeException("该考试已完成并批阅，不能重复交卷！");
+        }
+        //0.1 考试时长校验：超过 时长+宽限 分钟后不允许交卷
+        //（遗留的超时“进行中”记录会在下次进入考试时自动按 0 分归档，不会卡死）
+        Paper durationPaper = paperService.getById(current.getExamId());
+        if (durationPaper != null && ExamTimePolicy.isOvertime(current.getStartTime(),
+                durationPaper.getDuration(), LocalDateTime.now())) {
+            throw new RuntimeException("已超过考试允许时长，无法交卷！重新进入该考试时，本次记录将自动结束归档。");
         }
         //1.中间表保存问题
         if (!ObjectUtils.isEmpty(answers)) {

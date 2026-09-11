@@ -21,6 +21,9 @@ public class UserPaperServiceImpl extends ServiceImpl<UserPaperMapper, UserPaper
 
     public static final String RELATION_AI_GENERATED = "AI_GENERATED";
 
+    /** 手动组卷归属 */
+    public static final String RELATION_MANUAL = "MANUAL";
+
     @Autowired
     private PaperMapper paperMapper;
 

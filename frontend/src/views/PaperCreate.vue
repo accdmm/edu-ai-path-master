@@ -38,10 +38,9 @@
                   placeholder="请选择题目分类" 
                   clearable 
                   @change="handleCategoryChange" 
-                  :disabled="!selectedType"
                 >
                   <el-option 
-                    v-for="category in subCategories" 
+                    v-for="category in allCategories" 
                     :key="category.id" 
                     :label="category.name" 
                     :value="category.id"
@@ -183,7 +182,7 @@
                       style="width: 100%;"
                     >
                       <el-option 
-                        v-for="category in getSubCategoriesForType(config.type)" 
+                        v-for="category in allCategories" 
                         :key="category.id" 
                         :label="category.name" 
                         :value="category.id"
@@ -352,34 +351,27 @@ const fetchCategories = async () => {
   }
 }
 
-// 新增：计算属性，用于获取当前主类型下的子分类
-const subCategories = computed(() => {
-  if (!selectedType.value || !categoryTree.value.length) {
-    return []
+// 所有分类（分类树扁平化，子级缩进展示）。分类与题型是两个独立维度，
+// 数据库中不存在按题型命名的父分类，不再按“选择题/判断题”过滤，避免下拉永远为空
+const allCategories = computed(() => flattenCategories(categoryTree.value))
+
+const flattenCategories = (cats) => {
+  const list = []
+  const walk = (nodes, depth) => {
+    (nodes || []).forEach(cat => {
+      list.push({ id: cat.id, name: depth > 0 ? '  '.repeat(depth) + cat.name : cat.name })
+      if (cat.children && cat.children.length > 0) {
+        walk(cat.children, depth + 1)
+      }
+    })
   }
-  let parentCategoryName = ''
-  switch (selectedType.value) {
-    case 'CHOICE':
-      parentCategoryName = '选择题'
-      break
-    case 'JUDGE':
-      parentCategoryName = '判断题'
-      break
-    case 'TEXT':
-      parentCategoryName = '简答题'
-      break
-    default:
-      return []
-  }
-  const parentCategory = categoryTree.value.find(cat => cat.name === parentCategoryName)
-  return parentCategory ? parentCategory.children : []
-})
+  walk(cats, 0)
+  return list
+}
 
 // 类型选择变化
 const handleTypeChange = () => {
-  // 当主类型变化时，必须清空子分类的选择，因为子分类列表已改变
-  selectedCategory.value = null
-  fetchAllQuestions() // 重新获取题目
+  fetchAllQuestions() // 重新获取题目（分类与题型独立，无需清空已选分类）
 }
 
 // 子分类选择变化
@@ -522,22 +514,6 @@ const handleAiSubmit = async () => {
   } catch (error) {
     ElMessage.error('AI智能组卷失败，请检查配置或联系管理员')
   }
-}
-
-// 为AI组卷提供指定类型的子分类
-const getSubCategoriesForType = (type) => {
-  if (!type || !categoryTree.value.length) return [];
-  
-  let parentCategoryName = '';
-  switch (type) {
-    case 'CHOICE': parentCategoryName = '选择题'; break;
-    case 'JUDGE': parentCategoryName = '判断题'; break;
-    case 'TEXT': parentCategoryName = '简答题'; break;
-    default: return [];
-  }
-  
-  const parentCategory = categoryTree.value.find(cat => cat.name === parentCategoryName);
-  return parentCategory ? parentCategory.children : [];
 }
 
 // 新增：加载试卷数据用于编辑回显

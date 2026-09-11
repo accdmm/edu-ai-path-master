@@ -51,7 +51,7 @@ public class ExamRecordController {
             @Parameter(description = "每页显示数量", example = "20") @RequestParam(defaultValue = "20") Integer size,
             @Parameter(description = "学生姓名筛选条件") @RequestParam(required = false) String studentName,
             @Parameter(description = "学号筛选条件") @RequestParam(required = false) String studentNumber,
-            @Parameter(description = "考试状态，0-进行中，1-已完成，2-已批阅") @RequestParam(required = false) Integer status,
+            @Parameter(description = "考试状态，0-进行中，1-判卷中，2-已批阅") @RequestParam(required = false) Integer status,
             @Parameter(description = "开始日期，格式：yyyy-MM-dd") @RequestParam(required = false) String startDate,
             @Parameter(description = "结束日期，格式：yyyy-MM-dd") @RequestParam(required = false) String endDate
     ) {
@@ -62,7 +62,7 @@ public class ExamRecordController {
         if (status != null){
            String strStatus = switch (status) {
                case 0 -> "进行中";
-               case 1 -> "已完成";
+               case 1 -> "判卷中";
                case 2 -> "已批阅";
                default -> null;
            };

@@ -12,6 +12,7 @@ import com.atguigu.exam.mapper.InterviewQuestionCategoryMapper;
 import com.atguigu.exam.mapper.InterviewQuestionMapper;
 import com.atguigu.exam.mapper.MockInterviewAnswerMapper;
 import com.atguigu.exam.mapper.MockInterviewMapper;
+import com.atguigu.exam.service.CreditBillingService;
 import com.atguigu.exam.service.MockInterviewAiService;
 import com.atguigu.exam.service.MockInterviewService;
 import com.atguigu.exam.service.UserDiagnosisService;
@@ -64,8 +65,14 @@ public class MockInterviewServiceImpl implements MockInterviewService {
     @Autowired
     private UserDiagnosisService userDiagnosisService;
 
+    @Autowired
+    private CreditBillingService creditBillingService;
+
     private static final int MAX_QUESTIONS = 20;
     private static final int DEFAULT_DURATION = 60;
+
+    /** AI 模拟面试计费：每场扣积分（对齐 AI 面试官，覆盖逐题 AI 评分 + 总结的 LLM 成本） */
+    private static final int MOCK_INTERVIEW_COST = 10;
 
     @Override
     public Result<MockInterviewStartResponseVo> startMockInterview(Long userId, MockInterviewStartVo vo) {
@@ -84,6 +91,12 @@ public class MockInterviewServiceImpl implements MockInterviewService {
                 return Result.error("该方向暂无可用题目，请先到企业真题库查看");
             }
 
+            // 计费：每场模拟面试扣 MOCK_INTERVIEW_COST 积分（条件原子扣减，不足直接拒绝，不产生垃圾记录）
+            if (!creditBillingService.deductIfEnough(userId, MOCK_INTERVIEW_COST)) {
+                return Result.error(4002, "积分不足，开始一场 AI 模拟面试需 " + MOCK_INTERVIEW_COST
+                        + " 积分，可通过购买邀请码获取积分");
+            }
+
             MockInterview record = new MockInterview();
             record.setUserId(userId);
             record.setDirection(direction);
@@ -99,6 +112,10 @@ public class MockInterviewServiceImpl implements MockInterviewService {
             record.setCreateTime(new Date());
             record.setUpdateTime(new Date());
             interviewMapper.insert(record);
+
+            // 计费流水（扣费成功后记账）
+            creditBillingService.record(userId, -MOCK_INTERVIEW_COST, "mock-interview", "AI模拟面试",
+                    creditBillingService.currentBalance(userId));
 
             List<MockInterviewQuestionVo> questions = new ArrayList<>();
             for (InterviewQuestion q : picked) {
@@ -156,6 +173,14 @@ public class MockInterviewServiceImpl implements MockInterviewService {
                 return Result.error("该面试已完成，无法继续提交答案");
             }
 
+            // 同题去重：同一面试内每道题只允许作答一次（重复提交会重复计 AI 评分、拉高总分）
+            Long alreadyAnswered = answerMapper.selectCount(new LambdaQueryWrapper<MockInterviewAnswer>()
+                    .eq(MockInterviewAnswer::getInterviewId, interviewId)
+                    .eq(MockInterviewAnswer::getQuestionId, vo.getQuestionId()));
+            if (alreadyAnswered > 0) {
+                return Result.error("该题目已作答过，请勿重复提交");
+            }
+
             MockInterviewAnswer answer = new MockInterviewAnswer();
             answer.setInterviewId(interviewId);
             answer.setQuestionId(vo.getQuestionId());
@@ -203,9 +228,9 @@ public class MockInterviewServiceImpl implements MockInterviewService {
                 return Result.success(existing);
             }
 
-            List<MockInterviewAnswer> answers = answerMapper.selectList(
+            List<MockInterviewAnswer> answers = distinctByQuestionKeepMax(answerMapper.selectList(
                     new LambdaQueryWrapper<MockInterviewAnswer>()
-                            .eq(MockInterviewAnswer::getInterviewId, interviewId));
+                            .eq(MockInterviewAnswer::getInterviewId, interviewId)));
 
             int totalScore = 0;
             for (MockInterviewAnswer a : answers) {
@@ -473,9 +498,9 @@ public class MockInterviewServiceImpl implements MockInterviewService {
         vo.setDuration(record.getDuration());
 
         List<Map<String, Object>> details = new ArrayList<>();
-        List<MockInterviewAnswer> answers = answerMapper.selectList(
+        List<MockInterviewAnswer> answers = distinctByQuestionKeepMax(answerMapper.selectList(
                 new LambdaQueryWrapper<MockInterviewAnswer>()
-                        .eq(MockInterviewAnswer::getInterviewId, record.getId()));
+                        .eq(MockInterviewAnswer::getInterviewId, record.getId())));
         for (MockInterviewAnswer a : answers) {
             Map<String, Object> detail = new HashMap<>();
             detail.put("questionTitle", a.getQuestionContent());
@@ -513,11 +538,39 @@ public class MockInterviewServiceImpl implements MockInterviewService {
             vo.setImprovementSuggestions(new ArrayList<>());
         }
 
-        List<MockInterviewAnswer> answers = answerMapper.selectList(
+        List<MockInterviewAnswer> answers = distinctByQuestionKeepMax(answerMapper.selectList(
                 new LambdaQueryWrapper<MockInterviewAnswer>()
-                        .eq(MockInterviewAnswer::getInterviewId, record.getId()));
+                        .eq(MockInterviewAnswer::getInterviewId, record.getId())));
         vo.setAnswers(toDetailVos(answers));
         return vo;
+    }
+
+    /**
+     * 按题目去重（历史数据可能存在同题多行）：同一题保留得分最高的一条，避免重复计分拉高总分
+     */
+    static List<MockInterviewAnswer> distinctByQuestionKeepMax(List<MockInterviewAnswer> answers) {
+        if (answers == null || answers.size() <= 1) {
+            return answers;
+        }
+        Map<Long, MockInterviewAnswer> best = new java.util.LinkedHashMap<>();
+        List<MockInterviewAnswer> noQuestionId = new ArrayList<>();
+        for (MockInterviewAnswer a : answers) {
+            if (a.getQuestionId() == null) {
+                noQuestionId.add(a);
+                continue;
+            }
+            MockInterviewAnswer old = best.get(a.getQuestionId());
+            if (old == null || scoreOf(a) > scoreOf(old)) {
+                best.put(a.getQuestionId(), a);
+            }
+        }
+        List<MockInterviewAnswer> result = new ArrayList<>(best.values());
+        result.addAll(noQuestionId);
+        return result;
+    }
+
+    private static int scoreOf(MockInterviewAnswer a) {
+        return a.getScore() == null ? 0 : a.getScore();
     }
 
     private List<MockInterviewAnswerDetailVo> toDetailVos(List<MockInterviewAnswer> answers) {

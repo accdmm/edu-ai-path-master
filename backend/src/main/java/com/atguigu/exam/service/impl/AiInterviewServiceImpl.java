@@ -12,21 +12,23 @@ import com.atguigu.exam.mapper.UserCreditMapper;
 import com.atguigu.exam.service.AiInterviewService;
 import com.atguigu.exam.service.KimiAiService;
 import com.atguigu.exam.service.UserDiagnosisService;
+import com.atguigu.exam.vo.AiInterviewSession;
 import com.atguigu.exam.vo.AiInterviewStartVo;
 import com.atguigu.exam.vo.LearningPathDetailVo;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * AI 面试官实现（BOSS 直聘式多轮对话面试）
@@ -36,14 +38,17 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 public class AiInterviewServiceImpl implements AiInterviewService {
 
-    /** 会话保留时长：30 分钟 */
-    private static final long SESSION_TTL_MS = 30 * 60 * 1000L;
+    /** 会话 Redis Key 前缀 */
+    private static final String SESSION_KEY_PREFIX = "aiinterview:session:";
 
-    /** 面试会话缓存：interviewId -> Session */
-    private static final ConcurrentHashMap<Long, Session> SESSIONS = new ConcurrentHashMap<>();
+    /** 会话保留时长（Redis TTL 自动过期，含面试报告查看窗口） */
+    private static final Duration SESSION_TTL = Duration.ofHours(2);
 
     @Autowired
     private KimiAiService kimiAiService;
+
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
 
     @Autowired
     private UserDiagnosisService userDiagnosisService;
@@ -60,33 +65,14 @@ public class AiInterviewServiceImpl implements AiInterviewService {
     /** AI 面试计费：每场面试扣积分，无免费额度 */
     private static final int AI_INTERVIEW_COST = 10;
 
-    /** 面试会话 */
-    private static class Session {
-        Long userId;
-        String direction;
-        String difficulty;
-        int maxRounds;
-        int round;
-        long startTime;
-        long lastActive;
-        String diagnosisText = ""; // 个性化时的薄弱知识点文本
-        final List<String> askedQuestions = new ArrayList<>(); // 已问过的题目（降级换题时去重）
-        final List<Map<String, String>> messages = new ArrayList<>();
-        /** 面试报告状态：NONE / GENERATING / DONE / FAILED */
-        volatile String reportStatus = "NONE";
-        /** 已生成的面试报告（含 qaReview 每题参考答案） */
-        volatile Map<String, Object> report;
-    }
-
     @Override
     public Result<Map<String, Object>> start(Long userId, AiInterviewStartVo vo) {
         try {
-            cleanupExpired();
             String direction = vo.getDirection() == null ? "java" : vo.getDirection();
             String difficulty = vo.getDifficulty() == null ? "medium" : vo.getDifficulty();
             int maxRounds = vo.getMaxRounds() == null ? 6 : Math.max(3, Math.min(12, vo.getMaxRounds()));
 
-            Session s = new Session();
+            AiInterviewSession s = new AiInterviewSession();
             s.userId = userId;
             s.direction = direction;
             s.difficulty = difficulty;
@@ -148,7 +134,7 @@ public class AiInterviewServiceImpl implements AiInterviewService {
             record.setCreateTime(new Date());
             creditRecordMapper.insert(record);
 
-            SESSIONS.put(id, s);
+            saveSession(id, s);
 
             Map<String, Object> data = new HashMap<>();
             data.put("interviewId", id);
@@ -168,7 +154,7 @@ public class AiInterviewServiceImpl implements AiInterviewService {
     @Override
     public Result<Map<String, Object>> answer(Long userId, Long interviewId, String userAnswer) {
         try {
-            Session s = SESSIONS.get(interviewId);
+            AiInterviewSession s = loadSession(interviewId, userId);
             if (s == null || !s.userId.equals(userId)) {
                 return Result.error(404, "面试会话不存在或已过期");
             }
@@ -227,6 +213,8 @@ public class AiInterviewServiceImpl implements AiInterviewService {
                 return startReportAndReturnPending(s, interviewId, comment);
             }
 
+            saveSession(interviewId, s);
+
             Map<String, Object> data = new HashMap<>();
             data.put("comment", comment);
             data.put("question", question);
@@ -244,7 +232,7 @@ public class AiInterviewServiceImpl implements AiInterviewService {
     @Override
     public Result<Map<String, Object>> finish(Long userId, Long interviewId) {
         try {
-            Session s = SESSIONS.get(interviewId);
+            AiInterviewSession s = loadSession(interviewId, userId);
             if (s == null || !s.userId.equals(userId)) {
                 return Result.error(404, "面试会话不存在或已过期");
             }
@@ -265,7 +253,7 @@ public class AiInterviewServiceImpl implements AiInterviewService {
 
     @Override
     public Result<Map<String, Object>> getReport(Long userId, Long interviewId) {
-        Session s = SESSIONS.get(interviewId);
+        AiInterviewSession s = loadSession(interviewId, userId);
         if (s == null || !s.userId.equals(userId)) {
             return Result.error(404, "面试报告不存在或已过期");
         }
@@ -284,9 +272,10 @@ public class AiInterviewServiceImpl implements AiInterviewService {
     // ---------- 报告生成 ----------
 
     /** 触发异步报告生成，立即返回 reportPending 状态 */
-    private Result<Map<String, Object>> startReportAndReturnPending(Session s, Long interviewId, String lastComment) {
+    private Result<Map<String, Object>> startReportAndReturnPending(AiInterviewSession s, Long interviewId, String lastComment) {
         s.reportStatus = "GENERATING";
         s.lastActive = System.currentTimeMillis();
+        saveSession(interviewId, s);
         CompletableFuture.runAsync(() -> {
             try {
                 JSONObject json = null;
@@ -298,10 +287,12 @@ public class AiInterviewServiceImpl implements AiInterviewService {
                 }
                 s.report = buildReportData(s, json);
                 s.reportStatus = "DONE";
+                saveSession(interviewId, s);
                 log.info("AI 面试报告已生成，interviewId={}", interviewId);
             } catch (Exception e) {
                 log.error("生成 AI 面试报告失败", e);
                 s.reportStatus = "FAILED";
+                saveSession(interviewId, s);
             }
         });
 
@@ -312,7 +303,7 @@ public class AiInterviewServiceImpl implements AiInterviewService {
         return Result.success(data);
     }
 
-    private Map<String, Object> pendingData(Session s) {
+    private Map<String, Object> pendingData(AiInterviewSession s) {
         Map<String, Object> data = new HashMap<>();
         data.put("ended", true);
         data.put("reportStatus", "GENERATING");
@@ -323,14 +314,14 @@ public class AiInterviewServiceImpl implements AiInterviewService {
         return data;
     }
 
-    private Map<String, Object> doneData(Session s) {
+    private Map<String, Object> doneData(AiInterviewSession s) {
         Map<String, Object> data = s.report == null ? new HashMap<>() : new HashMap<>(s.report);
         data.put("reportStatus", "DONE");
         return data;
     }
 
     /** 组装面试报告（含每题参考答案 qaReview） */
-    private Map<String, Object> buildReportData(Session s, JSONObject json) {
+    private Map<String, Object> buildReportData(AiInterviewSession s, JSONObject json) {
         Map<String, Object> data = new HashMap<>();
         data.put("ended", true);
         data.put("round", s.round);
@@ -386,7 +377,7 @@ public class AiInterviewServiceImpl implements AiInterviewService {
 
     // ---------- 内部工具 ----------
 
-    private String buildTurnPrompt(Session s) {
+    private String buildTurnPrompt(AiInterviewSession s) {
         StringBuilder p = new StringBuilder();
         p.append("你是一名资深技术面试官，正在多轮面试候选人。请像真实面试一样：先简短点评上一回答（肯定优点/指出不足，80字内），然后根据回答决定是【追问本题】还是【换下一题】，继续提问。\n\n");
         p.append("【面试方向】").append(directionLabel(s.direction)).append("　【难度】").append(s.difficulty).append("\n");
@@ -405,7 +396,7 @@ public class AiInterviewServiceImpl implements AiInterviewService {
         return p.toString();
     }
 
-    private String buildFinishPrompt(Session s) {
+    private String buildFinishPrompt(AiInterviewSession s) {
         StringBuilder p = new StringBuilder();
         p.append("你是一名资深技术面试官，请对候选人的整场面试给出总结评分与学习建议。\n\n");
         p.append("【面试方向】").append(directionLabel(s.direction)).append("　【难度】").append(s.difficulty).append("\n");
@@ -431,7 +422,7 @@ public class AiInterviewServiceImpl implements AiInterviewService {
     }
 
     /** 最后一轮收尾点评：只点评不出题 */
-    private String buildFinalCommentPrompt(Session s) {
+    private String buildFinalCommentPrompt(AiInterviewSession s) {
         StringBuilder p = new StringBuilder();
         p.append("你是一名资深技术面试官，这是面试的最后一个问题，候选人刚刚作答完毕。请像真实面试收尾一样：\n");
         p.append("1. 简短点评候选人最后的这个回答（肯定优点/指出不足，100字内）；\n");
@@ -449,14 +440,14 @@ public class AiInterviewServiceImpl implements AiInterviewService {
         return p.toString();
     }
 
-    private String buildFallbackQuestion(Session s) {
+    private String buildFallbackQuestion(AiInterviewSession s) {
         return "请谈谈你对 " + directionLabel(s.direction) + " 方向核心知识点的理解，以及你平时是如何学习和实践的？";
     }
 
     /**
      * 从企业真题库随机抽一道匹配方向/难度的真题（start 秒开 & LLM 降级时使用），自动排除已问过的题
      */
-    private String pickRealQuestion(String direction, String difficulty, Session s) {
+    private String pickRealQuestion(String direction, String difficulty, AiInterviewSession s) {
         try {
             List<InterviewQuestion> list = interviewQuestionMapper.selectList(
                     new LambdaQueryWrapper<InterviewQuestion>()
@@ -493,7 +484,7 @@ public class AiInterviewServiceImpl implements AiInterviewService {
     /**
      * 本地保底评分：按完成轮数占比估算（LLM 不可用时使用）
      */
-    private int localScore(Session s) {
+    private int localScore(AiInterviewSession s) {
         int answered = Math.max(1, s.round - 1);
         double ratio = (double) answered / s.maxRounds;
         return clamp((int) Math.round(50 + ratio * 30));
@@ -542,9 +533,34 @@ public class AiInterviewServiceImpl implements AiInterviewService {
         return map.getOrDefault(direction, direction);
     }
 
-    /** 清理超时会话（按最后活跃时间算，报告生成完仍可查看 30 分钟） */
-    private void cleanupExpired() {
-        long now = System.currentTimeMillis();
-        SESSIONS.entrySet().removeIf(e -> now - e.getValue().lastActive > SESSION_TTL_MS);
+    /**
+     * 会话持久化到 Redis（TTL 自动过期）：后端重启不再丢失进行中的面试会话，积分不白扣
+     */
+    private void saveSession(Long interviewId, AiInterviewSession s) {
+        try {
+            stringRedisTemplate.opsForValue().set(SESSION_KEY_PREFIX + interviewId, JSON.toJSONString(s), SESSION_TTL);
+        } catch (Exception e) {
+            log.warn("保存 AI 面试会话失败 interviewId={}: {}", interviewId, e.getMessage());
+        }
+    }
+
+    /**
+     * 从 Redis 加载会话并校验归属；不存在/过期/非本人返回 null
+     */
+    private AiInterviewSession loadSession(Long interviewId, Long userId) {
+        try {
+            String json = stringRedisTemplate.opsForValue().get(SESSION_KEY_PREFIX + interviewId);
+            if (json == null) {
+                return null;
+            }
+            AiInterviewSession s = JSON.parseObject(json, AiInterviewSession.class);
+            if (s == null || s.userId == null || !s.userId.equals(userId)) {
+                return null;
+            }
+            return s;
+        } catch (Exception e) {
+            log.warn("读取 AI 面试会话失败 interviewId={}: {}", interviewId, e.getMessage());
+            return null;
+        }
     }
 }

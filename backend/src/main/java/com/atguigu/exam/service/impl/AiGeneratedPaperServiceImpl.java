@@ -1,5 +1,6 @@
 package com.atguigu.exam.service.impl;
 
+import com.atguigu.exam.common.CreditNotEnoughException;
 import com.atguigu.exam.entity.Category;
 import com.atguigu.exam.entity.Paper;
 import com.atguigu.exam.entity.PaperQuestion;
@@ -11,6 +12,7 @@ import com.atguigu.exam.mapper.QuestionAnswerMapper;
 import com.atguigu.exam.mapper.QuestionChoiceMapper;
 import com.atguigu.exam.service.AiGeneratedPaperService;
 import com.atguigu.exam.service.CategoryService;
+import com.atguigu.exam.service.CreditBillingService;
 import com.atguigu.exam.service.PaperGenerateAiService;
 import com.atguigu.exam.service.PaperQuestionService;
 import com.atguigu.exam.service.PaperService;
@@ -41,8 +43,14 @@ import java.util.List;
 @Service
 public class AiGeneratedPaperServiceImpl implements AiGeneratedPaperService {
 
+    /** AI 生成整套试卷计费：每套扣积分，与本落库事务绑定（生成失败自动回滚不扣分） */
+    public static final int PAPER_GEN_COST = 20;
+
     @Autowired
     private PaperGenerateAiService paperGenerateAiService;
+
+    @Autowired
+    private CreditBillingService creditBillingService;
 
     @Autowired
     private QuestionService questionService;
@@ -68,6 +76,14 @@ public class AiGeneratedPaperServiceImpl implements AiGeneratedPaperService {
     @Transactional(rollbackFor = Exception.class)
     @Override
     public Paper generateAndSave(Long userId, AiGenerateRequestVo request) {
+        // 0. 计费：生成一套试卷扣 PAPER_GEN_COST 积分（条件原子扣减）
+        // 扣费与落库在同一事务，出题/落库失败时整体回滚，积分自动返还
+        if (!creditBillingService.deductIfEnough(userId, PAPER_GEN_COST)) {
+            throw new CreditNotEnoughException("生成一套试卷需要 " + PAPER_GEN_COST + " 积分");
+        }
+        creditBillingService.record(userId, -PAPER_GEN_COST, "ai-paper", "AI生成试卷（智能客服）",
+                creditBillingService.currentBalance(userId));
+
         // 1. 大模型出题
         List<QuestionImportVo> questionImports = paperGenerateAiService.generatePaperQuestions(request);
         if (questionImports == null || questionImports.isEmpty()) {

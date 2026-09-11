@@ -35,6 +35,22 @@ public class InviteCodeServiceImpl implements InviteCodeService {
 
     private static final int ACTIVATE_CREDITS = 100;
 
+    /** VIP 档位激活积分（普通 ACTIVATE_CREDITS，企业 300） */
+    private static final int VIP_CREDITS = 200;
+
+    /**
+     * 按邀请码档位返回激活积分：enterprise=300、vip=200、其余=100
+     */
+    static int bonusForType(String type) {
+        if ("enterprise".equals(type)) {
+            return 300;
+        }
+        if ("vip".equals(type)) {
+            return VIP_CREDITS;
+        }
+        return ACTIVATE_CREDITS;
+    }
+
     @Autowired
     private InviteCodeMapper inviteCodeMapper;
     @Autowired
@@ -118,7 +134,7 @@ public class InviteCodeServiceImpl implements InviteCodeService {
                 credit.setUpdateTime(new Date());
                 userCreditMapper.insert(credit);
             }
-            int bonus = "enterprise".equals(ic.getType()) ? 300 : ACTIVATE_CREDITS;
+            int bonus = bonusForType(ic.getType());
             credit.setActiveCredits(credit.getActiveCredits() == null ? 0 : credit.getActiveCredits() + bonus);
             credit.setTotalCredits(credit.getTotalCredits() == null ? 0 : credit.getTotalCredits() + bonus);
             credit.setUpdateTime(new Date());

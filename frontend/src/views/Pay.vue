@@ -70,7 +70,7 @@ const products = reactive([
     label: 'VIP',
     price: '29.90',
     tag: 'warning',
-    features: ['所有普通功能', '优先 AI 评分', '详细能力分析', '专属学习建议', '奖励 100 积分']
+    features: ['所有普通功能', '优先 AI 评分', '详细能力分析', '专属学习建议', '奖励 200 积分']
   },
   {
     type: 'enterprise',

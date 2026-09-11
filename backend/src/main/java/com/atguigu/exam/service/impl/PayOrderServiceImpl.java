@@ -50,7 +50,22 @@ public class PayOrderServiceImpl implements PayOrderService {
             "normal", "普通", "vip", "VIP", "enterprise", "企业");
 
     private static final int NORMAL_BONUS = 100;
+    private static final int VIP_BONUS = 200;
     private static final int ENTERPRISE_BONUS = 300;
+
+    /**
+     * 按购买档位返回赠送积分：enterprise=300、vip=200、normal=100
+     * （VIP 价格高于普通档，权益必须可感知）
+     */
+    static int bonusForType(String productType) {
+        if ("enterprise".equals(productType)) {
+            return ENTERPRISE_BONUS;
+        }
+        if ("vip".equals(productType)) {
+            return VIP_BONUS;
+        }
+        return NORMAL_BONUS;
+    }
 
     @Autowired
     private AlipayClient alipayClient;
@@ -261,7 +276,7 @@ public class PayOrderServiceImpl implements PayOrderService {
         ic.setCreateTime(new Date());
         inviteCodeMapper.insert(ic);
 
-        int bonus = "enterprise".equals(productType) ? ENTERPRISE_BONUS : NORMAL_BONUS;
+        int bonus = bonusForType(productType);
         UserCredit credit = userCreditMapper.selectOne(
                 new LambdaQueryWrapper<UserCredit>().eq(UserCredit::getUserId, userId));
         if (credit == null) {

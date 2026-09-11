@@ -840,28 +840,22 @@ const editAiQuestionDialogVisible = ref(false)
 const editingAiQuestion = ref(null)
 const editingAiQuestionIndex = ref(-1)
 
-// 根据题目类型筛选分类
-const filteredCategories = computed(() => {
-  if (!questionForm.type || !categoryTree.value.length) {
-    return []
+// 弹窗“分类”下拉：分类树扁平化展示（分类与题型独立维度，不再按题型父分类过滤）
+const filteredCategories = computed(() => flattenCategories(categoryTree.value))
+
+const flattenCategories = (cats) => {
+  const list = []
+  const walk = (nodes, depth) => {
+    (nodes || []).forEach(cat => {
+      list.push({ id: cat.id, name: depth > 0 ? '  '.repeat(depth) + cat.name : cat.name })
+      if (cat.children && cat.children.length > 0) {
+        walk(cat.children, depth + 1)
+      }
+    })
   }
-  let parentCategoryName = ''
-  switch (questionForm.type) {
-    case 'CHOICE':
-      parentCategoryName = '选择题'
-      break
-    case 'JUDGE':
-      parentCategoryName = '判断题'
-      break
-    case 'TEXT':
-      parentCategoryName = '简答题'
-      break
-    default:
-      return []
-  }
-  const parentCategory = categoryTree.value.find(cat => cat.name === parentCategoryName)
-  return parentCategory ? parentCategory.children : []
-})
+  walk(cats, 0)
+  return list
+}
 
 // 表单校验规则
 const rules = {
@@ -1069,50 +1063,15 @@ const resetAiGenerateForm = () => {
   })
 }
 
-// 获取所有分类（用于AI生成）
+// 获取所有分类（用于AI生成）：分类与题型独立维度，直接返回全部分类
 const getAllCategories = () => {
   const allCategories = []
-  
-  // 根据选择的题目类型筛选对应的分类
-  if (aiGenerateForm.types && aiGenerateForm.types.length > 0) {
-    // 获取主要题目类型（如果选择了多种类型，使用第一种）
-    const primaryType = aiGenerateForm.types[0]
-    let parentCategoryName = ''
-    
-    switch (primaryType) {
-      case 'CHOICE':
-        parentCategoryName = '选择题'
-        break
-      case 'JUDGE':
-        parentCategoryName = '判断题'
-        break
-      case 'TEXT':
-        parentCategoryName = '简答题'
-        break
-      default:
-        // 如果没有匹配的类型，返回所有分类
-        categoryTree.value.forEach(parent => {
-          if (parent.children) {
-            allCategories.push(...parent.children)
-          }
-        })
-        return allCategories
+  categoryTree.value.forEach(parent => {
+    allCategories.push({ id: parent.id, name: parent.name })
+    if (parent.children) {
+      parent.children.forEach(child => allCategories.push({ id: child.id, name: '  ' + child.name }))
     }
-    
-    // 查找对应的父级分类
-    const parentCategory = categoryTree.value.find(cat => cat.name === parentCategoryName)
-    if (parentCategory && parentCategory.children) {
-      allCategories.push(...parentCategory.children)
-    }
-  } else {
-    // 如果没有选择题目类型，返回所有分类
-    categoryTree.value.forEach(parent => {
-      if (parent.children) {
-        allCategories.push(...parent.children)
-      }
-    })
-  }
-  
+  })
   return allCategories
 }
 

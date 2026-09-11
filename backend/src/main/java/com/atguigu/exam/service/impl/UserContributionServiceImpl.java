@@ -2,11 +2,16 @@ package com.atguigu.exam.service.impl;
 
 import com.alibaba.fastjson2.JSON;
 import com.atguigu.exam.common.Result;
+import com.atguigu.exam.entity.CreditRecord;
 import com.atguigu.exam.entity.UserContribution;
+import com.atguigu.exam.entity.UserCredit;
+import com.atguigu.exam.mapper.CreditRecordMapper;
 import com.atguigu.exam.mapper.UserContributionMapper;
+import com.atguigu.exam.mapper.UserCreditMapper;
 import com.atguigu.exam.service.UserContributionService;
 import com.atguigu.exam.vo.ContributionReviewVo;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +33,15 @@ public class UserContributionServiceImpl implements UserContributionService {
 
     @Autowired
     private UserContributionMapper contributionMapper;
+
+    @Autowired
+    private UserCreditMapper userCreditMapper;
+
+    @Autowired
+    private CreditRecordMapper creditRecordMapper;
+
+    /** 真题贡献被采纳的积分奖励（仅首次采纳发放，拒绝/重复审核不重复发） */
+    private static final int CONTRIBUTION_REWARD = 20;
 
     @Override
     public Result<Map<String, Object>> submitContribution(Long userId, String content, List<String> imageUrls, String contact) {
@@ -99,16 +113,58 @@ public class UserContributionServiceImpl implements UserContributionService {
             if (uc == null) {
                 return Result.error(404, "记录不存在");
             }
+            // 仅“待审(0) → 采纳(1)”发放奖励，重复审核/拒绝不重复发积分
+            boolean firstApproval = vo.getStatus() != null && vo.getStatus() == 1
+                    && (uc.getStatus() == null || uc.getStatus() == 0);
             uc.setStatus(vo.getStatus());
             uc.setAdminRemark(vo.getAdminRemark());
             uc.setReviewedTime(new Date());
             contributionMapper.updateById(uc);
+            if (firstApproval) {
+                grantContributionReward(uc.getUserId());
+            }
             String msg = vo.getStatus() != null && vo.getStatus() == 1 ? "已采纳" : "已拒绝";
             return Result.success(null, msg);
         } catch (Exception e) {
             log.error("审核真题失败", e);
             return Result.error("审核真题失败");
         }
+    }
+
+    /**
+     * 贡献采纳奖励：条件原子加积分 + 写流水
+     */
+    private void grantContributionReward(Long userId) {
+        if (userId == null) {
+            return;
+        }
+        int updated = userCreditMapper.update(null, new UpdateWrapper<UserCredit>()
+                .eq("user_id", userId)
+                .setSql("active_credits = active_credits + " + CONTRIBUTION_REWARD)
+                .setSql("total_credits = total_credits + " + CONTRIBUTION_REWARD)
+                .setSql("update_time = NOW()"));
+        if (updated == 0) {
+            // 用户还没有积分账户：初始化后再发
+            UserCredit credit = new UserCredit();
+            credit.setUserId(userId);
+            credit.setTotalCredits(CONTRIBUTION_REWARD);
+            credit.setActiveCredits(CONTRIBUTION_REWARD);
+            credit.setCreateTime(new Date());
+            credit.setUpdateTime(new Date());
+            userCreditMapper.insert(credit);
+        }
+        int balance;
+        UserCredit latest = userCreditMapper.selectOne(
+                new LambdaQueryWrapper<UserCredit>().eq(UserCredit::getUserId, userId));
+        balance = latest == null || latest.getActiveCredits() == null ? 0 : latest.getActiveCredits();
+        CreditRecord record = new CreditRecord();
+        record.setUserId(userId);
+        record.setChangeAmount(CONTRIBUTION_REWARD);
+        record.setType("contribution");
+        record.setSource("真题贡献被采纳");
+        record.setBalance(balance);
+        record.setCreateTime(new Date());
+        creditRecordMapper.insert(record);
     }
 
     private Map<String, Object> toView(UserContribution uc) {

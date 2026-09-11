@@ -2,8 +2,12 @@ package com.atguigu.exam.utils;
 
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+
+import java.security.Principal;
 
 /**
  * 当前登录用户工具类
@@ -48,5 +52,21 @@ public class UserContextUtil {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    /**
+     * 当前请求是否为管理员角色（JwtAuthenticationFilter 已按 token 加载 DB 角色到 authorities）
+     * 用于私有资源的管理员放行（如后台编辑任意 DRAFT 试卷）
+     */
+    public boolean isAdmin() {
+        Principal principal = request.getUserPrincipal();
+        if (principal instanceof Authentication authentication) {
+            for (GrantedAuthority authority : authentication.getAuthorities()) {
+                if ("ROLE_ADMIN".equals(authority.getAuthority())) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }

@@ -1,6 +1,7 @@
 package com.atguigu.exam.controller;
 
 import com.atguigu.exam.agent.XiaohuAgent;
+import com.atguigu.exam.common.CreditNotEnoughException;
 import com.atguigu.exam.common.Result;
 import com.atguigu.exam.entity.ChatMessages;
 import com.atguigu.exam.entity.Paper;
@@ -71,19 +72,22 @@ public class ChatController {
 
     /**
      * 判断用户消息是否为"生成整套试卷"意图
+     * 关键词要求包含"一套"或"试卷"，避免"帮我生成这道题的解析"这类单题请求误触发整套出题
      */
-    private boolean isGeneratePaperRequest(String content) {
+    static boolean isGeneratePaperRequest(String content) {
         if (ObjectUtils.isEmpty(content)) {
             return false;
         }
-        // 命中生成试卷关键词，且不含明确的"找题/查题"意图
-        String[] keywords = {"生成一套", "出一套", "生成试卷", "帮我生成", "帮我出", "生成一套试卷"};
+        String[] keywords = {"生成一套", "出一套", "来一套", "生成试卷", "出一套试卷"};
+        boolean hitKeyword = false;
         for (String keyword : keywords) {
-            if (content.contains(keyword) && (content.contains("试卷") || content.contains("题目") || content.contains("题"))) {
-                return true;
+            if (content.contains(keyword)) {
+                hitKeyword = true;
+                break;
             }
         }
-        return false;
+        // 命中"一套/试卷"强意图词，且消息涉及试卷或题目，才做出题
+        return hitKeyword && (content.contains("试卷") || content.contains("题"));
     }
 
     /**
@@ -110,6 +114,10 @@ public class ChatController {
                     + "考试时长：60 分钟\n\n"
                     + "点击开始考试：/exam/start/" + paper.getId() + "\n"
                     + "这是你的私有试卷，其他人看不到哦。也可以去【我的AI试卷】页面查看。";
+        } catch (CreditNotEnoughException e) {
+            log.info("AI 生成试卷积分不足 userId={}: {}", userId, e.getMessage());
+            return "你的积分不足，暂时无法生成试卷：" + e.getMessage()
+                    + "。\n可以去【购买邀请码】页面获取积分后再来找我哦～";
         } catch (Exception e) {
             log.error("AI 生成整套试卷失败", e);
             return "抱歉，生成试卷时出了点问题：" + e.getMessage() + "。请稍后再试，或换个说法再问我一次～";

@@ -46,9 +46,10 @@ public interface PaperService extends IService<Paper> {
     /**
      * 手动组卷
      * @param paperVo
+     * @param userId 创建者用户id（写入用户-试卷归属，DRAFT 卷对创建者与管理员可见可考）
      * @return
      */
-    Paper customCreatePaper(PaperVo paperVo);
+    Paper customCreatePaper(PaperVo paperVo, Long userId);
 
     /**
      * 智能组卷

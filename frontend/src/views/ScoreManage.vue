@@ -5,7 +5,7 @@
       <el-input v-model="searchForm.studentNumber" placeholder="学号/工号" clearable style="width: 200px" @input="handleSearch" />
       <el-select v-model="searchForm.status" placeholder="考试状态" clearable style="width: 150px" @change="handleSearch">
         <el-option label="进行中" :value="0" />
-        <el-option label="已完成" :value="1" />
+        <el-option label="判卷中" :value="1" />
         <el-option label="已批阅" :value="2" />
       </el-select>
       <el-date-picker
@@ -50,7 +50,7 @@
         <el-table-column label="操作" width="240" fixed="right">
           <template #default="scope">
             <el-button size="small" @click="viewDetail(scope.row)" icon="View">查看详情</el-button>
-            <el-button v-if="scope.row.status === '已完成'" size="small" type="primary" @click="gradeExam(scope.row)" :loading="scope.row.grading" icon="Edit">批阅</el-button>
+            <el-button v-if="scope.row.status === '判卷中'" size="small" type="primary" @click="gradeExam(scope.row)" :loading="scope.row.grading" icon="Edit">重新批阅</el-button>
             <el-button size="small" type="danger" @click="deleteRecord(scope.row)" icon="Delete">删除</el-button>
           </template>
         </el-table-column>
@@ -107,8 +107,8 @@ const resetSearch = () => { Object.assign(searchForm, { studentName: '', student
 const handleSizeChange = (size) => { pagination.size = size; pagination.current = 1; getExamRecords(); }
 const handleCurrentChange = (current) => { pagination.current = current; getExamRecords(); }
 
-const getStatusText = (status) => ({ '进行中': '进行中', '已完成': '已完成', '已批阅': '已批阅' }[status] || status)
-const getStatusType = (status) => ({ '进行中': 'warning', '已完成': 'info', '已批阅': 'success' }[status] || 'info')
+const getStatusText = (status) => ({ '进行中': '进行中', '判卷中': '判卷中', '已批阅': '已批阅' }[status] || status)
+const getStatusType = (status) => ({ '进行中': 'warning', '判卷中': 'info', '已批阅': 'success' }[status] || 'info')
 const formatDateTime = (dateTime) => dateTime ? new Date(dateTime).toLocaleString('zh-CN') : '-'
 
 const viewDetail = (record) => router.push(`/exam-result/${record.id}`)

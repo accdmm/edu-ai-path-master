@@ -150,6 +150,25 @@ pinecone:
 - **注意**：PowerShell 控制台把中文显示成 `?` 是 GBK 渲染假象，DB/接口数据是正常 UTF-8，别被误导（用 HEX/python 验证）。
 - **后端当前 v18 运行中**：`DASHSCOPE_API_KEY` + `ALIPAY_PRIVATE_KEY` 完整值保存在 `C:\Users\34147\AppData\Local\Temp\opencode\launch_v18.ps1`（含 key，勿外发；重启时直接用它，别再手抄丢 key）。
 
+### 5.2 业务完整性修复 + 单元测试（2026-09-11，27 测试全绿）
+
+**修复清单**（背景：课设演示标准，不考虑安全/并发，聚焦业务闭环）：
+- **VIP 档位权益**：`InviteCodeServiceImpl.bonusForType` / `PayOrderServiceImpl.bonusForType`（enterprise=300 / vip=200 / normal=100），`Pay.vue` VIP 文案改"奖励 200 积分"。
+- **管理员编辑 DRAFT 卷被拒（演示截图 bug）**：`UserContextUtil.isAdmin()`（读 JWT 过滤器加载的 ROLE_ADMIN authorities）；`PaperServiceImpl.customPaperDetailByIdWithAuth` 管理员放行。
+- **分类下拉 No data（演示截图 bug）**：`PaperCreate.vue`/`QuestionManage.vue` 原按"选择题/判断题/简答题"父分类名查子分类，而 DB 是 Java/Spring 知识分类树 → 改为分类树扁平化（`flattenCategories`，子级缩进），分类与题型解耦。
+- **手动组卷写 user_paper**：`customCreatePaper(paperVo, userId)` 新增归属关联（`UserPaperServiceImpl.RELATION_MANUAL`），手动 DRAFT 卷创建者可考/可看；`PaperController` 传 `getUserId()`。
+- **AI 面试会话 Redis 持久化**：`AiInterviewSession`(vo) + `AiInterviewServiceImpl` 存 `aiinterview:session:{id}`（TTL 2h），重启不再丢会话/白扣积分。
+- **新计费（CreditBillingService 统一）**：模拟面试 start 扣 10 分（不足 4002）；聊天生成试卷扣 20 分（`AiGeneratedPaperServiceImpl.generateAndSave` 事务内扣费，LLM 失败回滚自动返还；`CreditNotEnoughException` → 客服友好话术）。
+- **考试时长生效**：`ExamTimePolicy.isOvertime`（时长+5 分钟宽限）；`customSubmitAnswer` 超时拒交卷；`startExam` 对超时遗留"进行中"记录按 0 分自动归档（防卡死）。
+- **模拟面试同题去重**：submit 前查 (interviewId,questionId) 已答即拒（省 LLM 调用）；`distinctByQuestionKeepMax` 汇总/详情去重保最高分。
+- **成绩单题序**：`ExamServiceImpl.sortAnswerRecordsByPaper` 按卷面题序排答题记录（原比较器算了 x/y 却按 questionId 排且 Long/Integer indexOf 恒 -1）。
+- **考试记录状态映射**：`ExamRecordController` 1→"判卷中"（原"已完成"永不出现）；`ScoreManage.vue` 筛选/标签/批阅按钮同步（按钮改"重新批阅"仅判卷中显示）。
+- **贡献采纳奖励**：`UserContributionServiceImpl.grantContributionReward`（仅 0→1 首次采纳 +20 分 + 流水 type=contribution）。
+- **聊天出题意图收紧**：`isGeneratePaperRequest` 需含"一套/生成试卷/出一套"强意图词且含"试卷/题"；"帮我生成这道题的解析"不再误触发整卷生成。
+- **空卷拒绝**：`customCreatePaper`/`customUpdatePaper` 空题目抛异常（update 原会 NPE）；`customRemoveId` 删卷清理 user_paper 悬空关联。
+
+**单元测试**（`backend/src/test/java/com/atguigu/exam/`，`mvn test` 27/27 绿）：ExamTimePolicyTest(5)、ChatIntentTest(3)、ExamRecordSortTest(2)、CreditTierTest(2)、AiInterviewSessionCodecTest(2)、MockInterviewDedupTest(3)、CreditBillingServiceImplTest(5)、MockInterviewStartBillingTest(2)、UserContributionRewardTest(3)。UI 级浏览器验证未做。
+
 ## 6. 还需做（待办/阻塞项）
 
 ### 阻塞项（等待用户提供）
