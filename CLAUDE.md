@@ -169,6 +169,20 @@ pinecone:
 
 **单元测试**（`backend/src/test/java/com/atguigu/exam/`，`mvn test` 27/27 绿）：ExamTimePolicyTest(5)、ChatIntentTest(3)、ExamRecordSortTest(2)、CreditTierTest(2)、AiInterviewSessionCodecTest(2)、MockInterviewDedupTest(3)、CreditBillingServiceImplTest(5)、MockInterviewStartBillingTest(2)、UserContributionRewardTest(3)。UI 级浏览器验证未做。
 
+### 5.3 前端导航与视觉改造（2026-09-12，均已浏览器实测）
+
+**导航闭环（commit fb58b34）**：
+- 企业真题详情"相关推荐"跳转修复：`InterviewQuestionDetail.vue` 加 `watch(route.params.id)` 重载（组件复用不重新 mounted，原点击只变 URL 不变内容）。
+- 全局悬浮"返回首页"组件 `components/BackHome.vue`（main.js 全局注册，模板直接 `<BackHome />`）：挂载于企业真题列表/练习、模拟面试系列、AI 面试官、我的AI试卷、AI学习分析、AI客服、购买页、企业详情、考试排行榜、考试结果页（共 13 页）；真题/试卷详情页用页头"首页"按钮、答题页用考生信息条内"首页"链接（避免考试中误触悬浮球）。
+- `router` 加 `scrollBehavior`：跳转回顶部，前进后退保留位置。
+
+**视觉改造（蓝白浅色主题，去 AI 化）**：
+- 全部换浅色对标全局（#f5f7fa + Element 蓝 #409eff 系），衬线标题（Noto Serif SC 系统栈，无外部字体依赖）。
+- **考试流程三页统一"蓝白考卷"语言**：`ExamStart.vue`（开始考试，原紫渐变）/`Exam.vue`（答题，原绿色）——浅蓝格纹桌面、白色考卷纸、蓝色双线卷头、题号方块章、左侧竖排"密封线"装饰、考钟胶囊（剩 5 分钟红底脉动）、选项加大至 15px 并左对齐；ExamStart/Exam.vue 考生信息条带"首页"链接。
+- **ExamRanking.vue**（原深藏青金）：改浅色白卡，保留金银铜 CSS 奖牌徽章、榜首浅金横幅（NO.1 徽章 + 流光动画）、衬线大分数 + 得分率细条、蓝色统计卡；清除全部 emoji（含 script 内 statsTitle computed 里的）。
+- **ExamResult.vue**（原紫渐变 #667eea→#764ba2 六处）：全部替换 Element 蓝渐变，页面底浅蓝灰，loading 文字改深色。
+- 验证：vite build 通过；浏览器实测四页截图（开始考试→答题→排行榜→结果页）确认无深色/emoji 残留。
+
 ## 6. 还需做（待办/阻塞项）
 
 ### 阻塞项（等待用户提供）

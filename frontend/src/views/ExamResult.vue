@@ -300,7 +300,8 @@
       </div>
     </div>
   </div>
-</template>
+  <BackHome />
+  </template>
 
 <script setup>
 import { ref, onMounted, computed, onUnmounted } from 'vue'
@@ -974,7 +975,9 @@ onMounted(() => {
 /* 主容器 */
 .exam-result-page {
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background:
+    radial-gradient(900px 400px at 50% -100px, rgba(64, 158, 255, 0.10), transparent 62%),
+    linear-gradient(180deg, #f6f9fd 0%, #eef3f9 100%);
   padding: 20px;
 }
 
@@ -985,7 +988,7 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   min-height: 400px;
-  color: white;
+  color: #606266;
 }
 
 .loading-container .el-icon {
@@ -1045,7 +1048,7 @@ onMounted(() => {
 
 /* 头部信息 */
 .result-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #3a8ee6 0%, #69b4ff 100%);
   color: white;
   padding: 30px 40px;
   display: flex;
@@ -1123,7 +1126,7 @@ onMounted(() => {
   left: 0;
   right: 0;
   height: 6px;
-  background: linear-gradient(45deg, #667eea, #764ba2);
+  background: linear-gradient(45deg, #3a8ee6, #69b4ff);
 }
 
 .score-icon {
@@ -1281,7 +1284,7 @@ onMounted(() => {
 
 /* 排名卡片样式优化 */
 .ranking-card-main {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #3a8ee6 0%, #69b4ff 100%);
   border-radius: 24px;
   box-shadow: 0 4px 24px rgba(102, 126, 234, 0.10);
   color: white;
@@ -1998,7 +2001,7 @@ onMounted(() => {
 }
 
 .result-certificate {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #3a8ee6 0%, #69b4ff 100%);
   color: white;
   padding: 60px;
   font-family: 'Microsoft YaHei', sans-serif;
@@ -2158,7 +2161,7 @@ onMounted(() => {
   border-right: 1px solid #f0f0f0;
 }
 .rank-block {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #3a8ee6 0%, #69b4ff 100%);
   color: #fff;
   display: flex;
   flex-direction: column;
@@ -2261,7 +2264,7 @@ onMounted(() => {
 }
 
 .grading-progress-panel {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #3a8ee6 0%, #69b4ff 100%);
   border-radius: 16px;
   padding: 28px 32px;
   margin-bottom: 24px;

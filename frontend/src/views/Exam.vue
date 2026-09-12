@@ -1,4 +1,8 @@
 <template>
+  <!-- 考场桌面背景（浅蓝） -->
+  <div class="exam-page-bg" aria-hidden="true"></div>
+  <!-- 考场密封线（装饰） -->
+  <div class="seal-line" aria-hidden="true"><span>- - - - 密&nbsp;封&nbsp;线&nbsp;内&nbsp;不&nbsp;得&nbsp;答&nbsp;题 - - - -</span></div>
   <div class="exam-container">
     <!-- 考试头部区域 -->
     <div class="exam-header">
@@ -7,12 +11,17 @@
         <div class="student-info" v-if="examRecord.studentName">
           <el-icon><User /></el-icon>
           <span>考生：{{ examRecord.studentName }}</span>
+          <el-divider direction="vertical" />
+          <el-button link type="primary" class="home-link" @click="$router.push('/')">
+            <el-icon><HomeFilled /></el-icon>
+            首页
+          </el-button>
         </div>
       </div>
       <div class="header-right">
-        <div class="timer-display">
+        <div class="timer-display" :class="{ 'time-danger': remainingTime <= 300 }">
           <el-icon><Timer /></el-icon>
-          <span>剩余时间: {{ formattedTime }}</span>
+          <span>{{ formattedTime }}</span>
         </div>
         <el-progress 
           :percentage="answerProgress" 
@@ -471,475 +480,317 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* 考试容器主体 */
-.exam-container {
-  max-width: 1000px; /* 设置最大宽度 */
-  margin: 20px auto; /* 居中显示 */
-  background-color: #ffffff; /* 纯白背景 */
-  border: 1px solid #ddd; /* 简单灰色边框 */
-  overflow: hidden; /* 隐藏溢出内容 */
+/* ============================================================
+   考试页 · 「蓝白考卷」设计（对标全局浅色 + Element 蓝）
+   浅蓝桌面 + 纯白试卷纸 + 衬线标题 + 密封线
+   ============================================================ */
+
+/* 浅蓝桌面 */
+.exam-page-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(1100px 520px at 50% -8%, rgba(64, 158, 255, 0.10), transparent 62%),
+    repeating-linear-gradient(0deg, transparent 0 34px, rgba(47, 107, 223, 0.035) 34px 35px),
+    linear-gradient(175deg, #eaf1f9 0%, #e2ebf5 60%, #d8e4f0 100%);
 }
 
-/* 考试头部样式 */
+/* 密封线：竖排虚线 */
+.seal-line {
+  position: fixed;
+  left: 18px;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  z-index: 1;
+  border-left: 2px dashed rgba(47, 107, 223, 0.35);
+  padding-left: 10px;
+  user-select: none;
+}
+.seal-line span {
+  writing-mode: vertical-rl;
+  letter-spacing: 6px;
+  font-size: 12px;
+  color: rgba(47, 86, 143, 0.55);
+  font-family: "Noto Serif SC", "Source Han Serif SC", "Songti SC", STSong, SimSun, serif;
+}
+
+/* 试卷纸 */
+.exam-container {
+  position: relative;
+  max-width: 960px;
+  margin: 28px auto 48px;
+  background:
+    linear-gradient(0deg, rgba(47, 107, 223, 0.025) 0 1px, transparent 1px 26px),
+    #ffffff;
+  border-radius: 4px;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.8) inset,
+    0 18px 40px -18px rgba(31, 59, 115, 0.28),
+    0 4px 12px rgba(31, 59, 115, 0.14);
+  overflow: hidden;
+}
+
+/* 考卷头：白底 + 蓝色双线 */
 .exam-header {
-  background-color: #f5f5f5; /* 浅灰背景 */
-  padding: 20px; /* 内边距 */
-  border-bottom: 1px solid #ddd; /* 底部边框 */
-  display: flex; /* 弹性布局 */
-  justify-content: space-between; /* 两端对齐 */
-  align-items: center; /* 垂直居中 */
-  flex-wrap: wrap; /* 允许换行 */
-  gap: 16px; /* 项目间距 */
+  background: #f4f8fd;
+  padding: 20px 28px 16px;
+  border-bottom: 3px solid #2f6bdf;
+  box-shadow: 0 5px 0 -3px #2f6bdf, 0 9px 0 -6px rgba(47, 107, 223, 0.3);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
 }
 
 .header-left .paper-title {
-  font-size: 20px; /* 标题字体大小 */
-  font-weight: normal; /* 正常字体粗细 */
-  color: #333; /* 深灰色文字 */
-  margin: 0 0 8px 0; /* 外边距 */
+  font-family: "Noto Serif SC", "Source Han Serif SC", "Songti SC", STSong, SimSun, serif;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #1f2d3d;
+  margin: 0 0 8px 0;
 }
 
 .student-info {
-  display: flex; /* 弹性布局 */
-  align-items: center; /* 垂直居中 */
-  gap: 8px; /* 图标与文字间距 */
-  color: #666; /* 灰色文字 */
-  font-size: 14px; /* 字体大小 */
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #5a6b85;
+  font-size: 13px;
+  border: 1px solid rgba(47, 107, 223, 0.3);
+  border-radius: 3px;
+  padding: 3px 10px;
+  background: rgba(47, 107, 223, 0.05);
+}
+.home-link {
+  font-size: 13px;
+  padding: 0;
 }
 
 .header-right {
-  display: flex; /* 弹性布局 */
-  flex-direction: column; /* 垂直排列 */
-  align-items: flex-end; /* 右对齐 */
-  gap: 8px; /* 项目间距 */
-  min-width: 200px; /* 最小宽度 */
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  min-width: 220px;
 }
 
+/* 考钟胶囊 */
 .timer-display {
-  display: flex; /* 弹性布局 */
-  align-items: center; /* 垂直居中 */
-  gap: 8px; /* 图标与文字间距 */
-  color: #d32f2f; /* 红色提醒 */
-  font-weight: normal; /* 正常字体粗细 */
-  font-size: 16px; /* 字体大小 */
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #2f6bdf;
+  color: #f2f7ff;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: 1px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  box-shadow: 0 3px 8px rgba(47, 107, 223, 0.35);
+}
+/* 临期 5 分钟：红底脉动 */
+.timer-display.time-danger {
+  background: #d9534f;
+  animation: clock-pulse 1s ease-in-out infinite;
+}
+@keyframes clock-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(217, 83, 79, 0.45); }
+  50% { box-shadow: 0 0 0 8px rgba(217, 83, 79, 0); }
 }
 
 .timer-progress {
-  width: 100%; /* 占满宽度 */
+  width: 100%;
 }
 
 .answer-count-tip {
   display: block;
-  margin-top: 4px;
+  margin-top: 2px;
   font-size: 12px;
-  color: #909399;
+  color: #7a8699;
   text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
-/* 题目区域样式 */
+/* 题目区域 */
 .question-area {
-  padding: 20px; /* 内边距 */
+  padding: 26px 28px 10px;
 }
 
+/* 大题组：衬线题号 + 蓝色双线 */
 .question-group {
-  margin-bottom: 30px; /* 组间距 */
-  border: 1px solid #ddd; /* 简单边框 */
+  margin-bottom: 26px;
 }
-
 .group-title {
-  font-size: 16px; /* 标题字体大小 */
-  font-weight: normal; /* 正常字体粗细 */
-  margin: 0; /* 清除外边距 */
-  padding: 12px 16px; /* 内边距 */
-  background-color: #f0f0f0; /* 浅灰背景 */
-  color: #333; /* 深灰文字 */
-  border-bottom: 1px solid #ddd; /* 底部边框 */
+  font-family: "Noto Serif SC", "Source Han Serif SC", "Songti SC", STSong, SimSun, serif;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: #1f2d3d;
+  margin: 0 0 14px;
+  padding: 0 2px 8px;
+  border-bottom: 3px double rgba(47, 107, 223, 0.65);
 }
 
+/* 题目卡：题号方块章 */
 .question-card {
-  padding: 20px; /* 内边距 */
-  border-bottom: 1px solid #eee; /* 底部边框 */
-  background-color: #ffffff; /* 白色背景 */
+  background: #fdfeff;
+  border: 1px solid rgba(47, 107, 223, 0.16);
+  border-radius: 4px;
+  padding: 18px 20px;
+  margin-bottom: 14px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
-
-.question-card:last-child {
-  border-bottom: none; /* 最后一个不显示底部边框 */
+.question-card:hover {
+  border-color: rgba(47, 107, 223, 0.45);
+  box-shadow: 0 2px 10px rgba(47, 107, 223, 0.08);
 }
 
 .question-title {
-  margin-bottom: 16px; /* 底部间距 */
+  margin-bottom: 12px;
 }
-
 .question-number {
-  display: block; /* 块级显示 */
-  font-weight: normal; /* 正常字体粗细 */
-  color: #666; /* 灰色题号 */
-  margin-bottom: 8px; /* 底部间距 */
-  font-size: 14px; /* 字体大小 */
+  display: inline-block;
+  background: #2f6bdf;
+  color: #f2f7ff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 3px 10px;
+  border-radius: 2px;
+  margin-bottom: 8px;
+  font-variant-numeric: tabular-nums;
 }
-
 .question-content {
-  margin: 0; /* 清除外边距 */
-  color: #333; /* 深灰文字 */
-  line-height: 1.5; /* 行高 */
-  font-size: 16px; /* 字体大小 */
+  font-size: 15.5px;
+  line-height: 1.75;
+  color: #253244;
+  margin: 0;
 }
 
-/* 选择题选项样式 - 左对齐 */
-.choice-options {
-  display: flex; /* 弹性布局 */
-  flex-direction: column; /* 垂直排列 */
-  gap: 8px; /* 选项间距 */
-  align-items: flex-start; /* 左对齐 */
-}
-
-.choice-options .option-item {
-  display: flex; /* 弹性布局 */
-  align-items: flex-start; /* 顶部对齐 */
-  padding: 8px 12px; /* 内边距 */
-  border: 1px solid #ddd; /* 简单边框 */
-  background-color: #ffffff; /* 白色背景 */
-  cursor: pointer; /* 鼠标指针 */
-  margin: 0; /* 清除外边距 */
-  min-width: 300px; /* 最小宽度确保对齐效果 */
-  max-width: 500px; /* 最大宽度 */
-}
-
-.choice-options .option-item:hover {
-  background-color: #f9f9f9; /* 悬停时背景变浅灰 */
-}
-
-.choice-options .el-radio__input.is-checked + .el-radio__label,
-.choice-options .el-checkbox__input.is-checked + .el-checkbox__label {
-  background-color: #e8f4f8 !important; /* 选中时背景变浅蓝 */
-}
-
-.option-label {
-  font-weight: normal; /* 正常字体粗细 */
-  color: #666; /* 灰色标签 */
-  margin-right: 8px; /* 右侧间距 */
-  min-width: 20px; /* 最小宽度 */
-}
-
-.option-content {
-  flex: 1; /* 占满剩余空间 */
-  color: #333; /* 深灰文字 */
-  line-height: 1.4; /* 行高 */
-}
-
-/* 判断题样式 - 左对齐 */
+/* 选项：加大 + 左对齐 */
+.choice-options,
 .judge-options {
-  display: flex; /* 弹性布局 */
-  gap: 12px; /* 选项间距 */
-  justify-content: flex-start; /* 左对齐 */
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  gap: 6px;
 }
-
+.choice-options .option-item,
 .judge-options .judge-item {
-  padding: 8px 16px; /* 内边距 */
-  border: 1px solid #ddd; /* 简单边框 */
-  background-color: #ffffff; /* 白色背景 */
-  color: #333; /* 深灰文字 */
-  font-weight: normal; /* 正常字体粗细 */
-  cursor: pointer; /* 鼠标指针 */
-  margin: 0; /* 清除外边距 */
-  min-width: 60px; /* 最小宽度 */
-  text-align: center; /* 文字居中 */
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  width: 100%;
+  margin-right: 0;
+  text-align: left;
+  font-size: 15px;
+  padding: 11px 14px;
+  border-radius: 4px;
+  transition: background-color 0.15s ease;
 }
-
+.choice-options .option-item:hover,
 .judge-options .judge-item:hover {
-  background-color: #f9f9f9; /* 悬停时背景变浅灰 */
+  background: rgba(47, 107, 223, 0.06);
+}
+.choice-options :deep(.el-radio__label),
+.judge-options :deep(.el-radio__label) {
+  font-size: 15px;
+  color: #2b3a4f;
+  line-height: 1.6;
+}
+.option-label {
+  font-weight: 700;
+  color: #2f6bdf;
+  margin-right: 6px;
+}
+.option-content {
+  color: #2b3a4f;
+  line-height: 1.65;
 }
 
-.judge-options .el-radio__input.is-checked + .el-radio__label {
-  background-color: #e8f4f8 !important; /* 选中时背景变浅蓝 */
+.text-input :deep(.el-textarea__inner) {
+  background: #fdfeff;
+  border: 1px solid rgba(47, 107, 223, 0.25);
+  border-radius: 4px;
+  font-size: 14.5px;
+  line-height: 1.7;
+  color: #253244;
+}
+.text-input :deep(.el-textarea__inner:focus) {
+  border-color: #2f6bdf;
+  box-shadow: 0 0 0 2px rgba(47, 107, 223, 0.15);
 }
 
-/* 简答题输入框样式 - 左对齐 */
-.text-input {
-  margin-top: 8px; /* 顶部间距 */
-  display: flex; /* 弹性布局 */
-  justify-content: flex-start; /* 左对齐 */
-}
-
-.text-input .el-textarea {
-  max-width: 500px; /* 最大宽度 */
-  width: 100%; /* 占满容器宽度 */
-}
-
-.text-input .el-textarea__inner {
-  border: 1px solid #ddd; /* 简单边框 */
-  padding: 12px; /* 内边距 */
-  font-size: 14px; /* 字体大小 */
-  line-height: 1.4; /* 行高 */
-  resize: vertical; /* 只允许垂直调整大小 */
-  background-color: #ffffff; /* 白色背景 */
-  position: relative; /* 相对定位 */
-  /* 防止复制粘贴的CSS样式 */
-  -webkit-user-select: text; /* 允许选择文本但限制操作 */
-  -moz-user-select: text;
-  -ms-user-select: text;
-  user-select: text;
-}
-
-.text-input .el-textarea__inner:focus {
-  border-color: #999; /* 聚焦时边框变灰 */
-  outline: none; /* 去除默认聚焦轮廓 */
-  box-shadow: 0 0 0 2px rgba(153, 153, 153, 0.2); /* 聚焦时添加淡阴影 */
-}
-
-/* 为简答题添加防作弊提示 */
-.text-input::before {
-  content: "⚠️ 此区域禁止粘贴"; /* 提示内容 */
-  position: absolute; /* 绝对定位 */
-  top: -20px; /* 顶部位置 */
-  right: 0; /* 右侧对齐 */
-  font-size: 12px; /* 字体大小 */
-  color: #ff6b6b; /* 红色警告文字 */
-  background-color: #ffe8e8; /* 浅红色背景 */
-  padding: 2px 8px; /* 内边距 */
-  border-radius: 4px; /* 圆角 */
-  border: 1px solid #ffcdd2; /* 浅红色边框 */
-  z-index: 10; /* 层级 */
-  font-weight: 500; /* 字体加粗 */
-}
-
-/* 提交按钮区域 */
+/* 交卷区 */
 .submission-footer {
-  text-align: center; /* 文字居中 */
-  padding: 20px; /* 内边距 */
-  background-color: #f5f5f5; /* 浅灰背景 */
-  border-top: 1px solid #ddd; /* 顶部边框 */
+  padding: 18px 28px 30px;
+  display: flex;
+  justify-content: center;
+  border-top: 1px dashed rgba(47, 107, 223, 0.3);
+  margin: 8px 28px 0;
+}
+.submission-footer :deep(.el-button--primary) {
+  background: #2f6bdf;
+  border-color: #2f6bdf;
+  font-family: "Noto Serif SC", "Source Han Serif SC", "Songti SC", STSong, SimSun, serif;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 8px;
+  text-indent: 8px;
+  padding: 22px 56px;
+  border-radius: 4px;
+  box-shadow: 0 6px 14px -4px rgba(47, 107, 223, 0.5);
+}
+.submission-footer :deep(.el-button--primary:hover) {
+  background: #4a80e8;
+  border-color: #4a80e8;
 }
 
-.submission-footer .el-button {
-  padding: 10px 30px; /* 内边距 */
-  font-size: 14px; /* 字体大小 */
-  font-weight: normal; /* 正常字体粗细 */
-  background-color: #666; /* 灰色背景 */
-  border-color: #666; /* 灰色边框 */
-  color: #ffffff; /* 白色文字 */
-}
-
-.submission-footer .el-button:hover {
-  background-color: #555; /* 悬停时背景变深灰 */
-  border-color: #555; /* 悬停时边框变深灰 */
-}
-
-/* AI判卷遮罩样式 */
-.grading-overlay {
-  position: fixed; /* 固定定位 */
-  top: 0; /* 顶部对齐 */
-  left: 0; /* 左侧对齐 */
-  width: 100%; /* 占满宽度 */
-  height: 100%; /* 占满高度 */
-  background: rgba(0, 0, 0, 0.5); /* 半透明黑色背景 */
-  display: flex; /* 弹性布局 */
-  justify-content: center; /* 水平居中 */
-  align-items: center; /* 垂直居中 */
-  z-index: 1000; /* 层级 */
-}
-
-.grading-content {
-  background: #ffffff; /* 白色背景 */
-  padding: 30px; /* 内边距 */
-  border: 1px solid #ddd; /* 简单边框 */
-  text-align: center; /* 文字居中 */
-  max-width: 350px; /* 最大宽度 */
-  width: 80%; /* 宽度占比 */
-}
-
-.grading-content h3 {
-  margin: 0 0 12px 0; /* 外边距 */
-  font-size: 18px; /* 字体大小 */
-  font-weight: normal; /* 正常字体粗细 */
-  color: #333; /* 深灰文字 */
-}
-
-.grading-content p {
-  margin: 0 0 20px 0; /* 外边距 */
-  font-size: 14px; /* 字体大小 */
-  color: #666; /* 灰色文字 */
-  line-height: 1.4; /* 行高 */
-}
-
-.grading-icon {
-  margin-bottom: 16px; /* 底部间距 */
-}
-
-.grading-icon .el-icon {
-  font-size: 36px; /* 图标大小 */
-  color: #666; /* 灰色图标 */
-}
-
-.grading-progress {
-  margin-bottom: 16px; /* 底部间距 */
-}
-
-.progress-text {
-  margin-top: 8px; /* 顶部间距 */
-  font-size: 14px; /* 字体大小 */
-  font-weight: normal; /* 正常字体粗细 */
-  color: #333; /* 深灰文字 */
-}
-
-/* 响应式设计 */
-@media (max-width: 768px) {
-  .exam-container {
-    margin: 10px; /* 移动端边距 */
-  }
-  
-  .exam-header {
-    padding: 16px; /* 移动端内边距 */
-    flex-direction: column; /* 垂直排列 */
-    text-align: center; /* 文字居中 */
-    gap: 12px; /* 项目间距 */
-  }
-  
-  .header-right {
-    width: 100%; /* 占满宽度 */
-    align-items: center; /* 居中对齐 */
-  }
-  
-  .question-area {
-    padding: 16px; /* 移动端内边距 */
-  }
-  
-  .question-card {
-    padding: 16px; /* 移动端内边距 */
-  }
-  
-  .choice-options {
-    align-items: stretch; /* 拉伸对齐，移动端占满宽度 */
-  }
-  
-  .choice-options .option-item {
-    min-width: auto; /* 移动端取消最小宽度限制 */
-    max-width: none; /* 移动端取消最大宽度限制 */
-  }
-  
-  .judge-options {
-    justify-content: flex-start; /* 移动端也保持左对齐 */
-    flex-wrap: wrap; /* 允许换行 */
-  }
-  
-  .text-input {
-    justify-content: stretch; /* 移动端拉伸对齐 */
-  }
-  
-  .text-input .el-textarea {
-    max-width: none; /* 移动端取消最大宽度限制 */
-  }
-}
-
-/* 时间到期遮罩样式 */
+/* 判卷中 / 时间到 覆盖层（保持功能，配色随主题） */
+.grading-overlay,
 .time-up-overlay {
-  position: fixed; /* 固定定位 */
-  top: 0; /* 顶部对齐 */
-  left: 0; /* 左侧对齐 */
-  width: 100%; /* 占满宽度 */
-  height: 100%; /* 占满高度 */
-  background: rgba(220, 53, 69, 0.9); /* 红色半透明背景 */
-  backdrop-filter: blur(8px); /* 背景模糊效果 */
-  display: flex; /* 弹性布局 */
-  justify-content: center; /* 水平居中 */
-  align-items: center; /* 垂直居中 */
-  z-index: 9999; /* 最高层级 */
-  animation: slideDown 0.5s ease-out; /* 滑入动画 */
+  position: fixed;
+  inset: 0;
+  background: rgba(23, 42, 74, 0.88);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3000;
 }
-
+.grading-content,
 .time-up-content {
-  background: #ffffff; /* 白色背景 */
-  padding: 40px; /* 内边距 */
-  border-radius: 12px; /* 圆角 */
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3); /* 阴影 */
-  text-align: center; /* 文字居中 */
-  max-width: 400px; /* 最大宽度 */
-  width: 90%; /* 宽度占比 */
-  border: 3px solid #dc3545; /* 红色边框 */
+  text-align: center;
+  color: #eaf2ff;
+  font-family: "Noto Serif SC", "Source Han Serif SC", "Songti SC", STSong, SimSun, serif;
 }
-
+.grading-icon,
 .time-up-icon {
-  font-size: 60px; /* 图标大小 */
-  margin-bottom: 20px; /* 底部间距 */
-  animation: pulse 1s infinite; /* 脉冲动画 */
+  font-size: 44px;
+  margin-bottom: 14px;
 }
-
-.time-up-content h3 {
-  margin: 0 0 16px 0; /* 外边距 */
-  font-size: 24px; /* 字体大小 */
-  font-weight: 600; /* 字体加粗 */
-  color: #dc3545; /* 红色文字 */
-}
-
+.grading-progress,
+.grading-content p,
 .time-up-content p {
-  margin: 0 0 24px 0; /* 外边距 */
-  font-size: 16px; /* 字体大小 */
-  color: #6c757d; /* 灰色文字 */
-  line-height: 1.5; /* 行高 */
+  color: rgba(234, 242, 255, 0.85);
 }
-
+.progress-text,
 .countdown-progress {
-  width: 100%; /* 占满宽度 */
-  height: 4px; /* 进度条高度 */
-  background-color: #f8f9fa; /* 背景色 */
-  border-radius: 2px; /* 圆角 */
-  position: relative; /* 相对定位 */
-  overflow: hidden; /* 隐藏溢出 */
+  font-variant-numeric: tabular-nums;
 }
 
-.countdown-progress::before {
-  content: ''; /* 空内容 */
-  position: absolute; /* 绝对定位 */
-  top: 0; /* 顶部对齐 */
-  left: 0; /* 左侧对齐 */
-  height: 100%; /* 占满高度 */
-  background: linear-gradient(90deg, #dc3545, #ff6b6b); /* 红色渐变 */
-  border-radius: 2px; /* 圆角 */
-  animation: countdown 3s linear; /* 倒计时动画 */
+/* 窄屏适配 */
+@media (max-width: 768px) {
+  .exam-container { margin: 12px 10px 32px; }
+  .question-area { padding: 18px 16px 6px; }
+  .exam-header { padding: 16px 16px 12px; }
+  .header-right { align-items: flex-start; min-width: 0; }
+  .seal-line { display: none; }
 }
-
-/* 滑入动画 */
-@keyframes slideDown {
-  from {
-    opacity: 0; /* 开始透明 */
-    transform: translateY(-50px); /* 开始向上偏移 */
-  }
-  to {
-    opacity: 1; /* 结束不透明 */
-    transform: translateY(0); /* 结束无偏移 */
-  }
-}
-
-/* 脉冲动画 */
-@keyframes pulse {
-  0%, 100% { 
-    transform: scale(1); /* 正常大小 */
-    opacity: 1; /* 不透明 */
-  }
-  50% { 
-    transform: scale(1.1); /* 放大 */
-    opacity: 0.8; /* 半透明 */
-  }
-}
-
-/* 倒计时进度条动画 */
-@keyframes countdown {
-  from { width: 0%; } /* 开始空 */
-  to { width: 100%; } /* 结束满 */
-}
-
-/* 禁用状态的输入控件样式 */
-:deep(.el-radio.is-disabled .el-radio__input) {
-  cursor: not-allowed !important; /* 禁用光标 */
-}
-
-:deep(.el-checkbox.is-disabled .el-checkbox__input) {
-  cursor: not-allowed !important; /* 禁用光标 */
-}
-
-:deep(.el-textarea.is-disabled .el-textarea__inner) {
-  background-color: #f5f5f5 !important; /* 禁用背景色 */
-  cursor: not-allowed !important; /* 禁用光标 */
-  color: #999 !important; /* 禁用文字颜色 */
-}
-</style> 
+</style>

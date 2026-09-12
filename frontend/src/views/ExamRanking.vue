@@ -2,25 +2,18 @@
   <div class="exam-ranking-page">
     <!-- 页面标题 - 重新设计 -->
     <div class="page-header">
-      <div class="header-decoration">
-        <div class="trophy-animation">🏆</div>
-        <div class="stars">
-          <span class="star">⭐</span>
-          <span class="star">⭐</span>
-          <span class="star">⭐</span>
-        </div>
-      </div>
-      <h2 class="main-title">🏆 考试排行榜 🏆</h2>
-      <p class="subtitle">🎯 挑战极限，追求卓越！看看谁是学霸之王？</p>
+      <div class="header-eyebrow">HALL OF FAME · 荣誉榜</div>
+      <h2 class="main-title">考试排行榜</h2>
+      <p class="subtitle">每一分，都是实力的见证</p>
       <div class="title-underline"></div>
     </div>
 
     <!-- 筛选条件 - 美化 -->
     <div class="filter-bar">
-      <div class="filter-label">🔍 筛选条件：</div>
+      <div class="filter-label">筛选</div>
       <el-select 
         v-model="selectedPaperId" 
-        placeholder="📚 选择试卷" 
+        placeholder="选择试卷" 
         clearable 
         style="width: 300px"
         @change="loadRanking"
@@ -35,7 +28,7 @@
       </el-select>
       <el-select 
         v-model="rankingLimit" 
-        placeholder="📊 显示数量" 
+        placeholder="显示数量" 
         style="width: 150px"
         @change="loadRanking"
         class="custom-select"
@@ -52,7 +45,7 @@
         icon="Refresh"
         class="refresh-btn"
       >
-        🔄 刷新排行榜
+        刷新榜单
       </el-button>
     </div>
 
@@ -62,12 +55,12 @@
       <div class="ranking-container">
         <!-- 冠军展示区 -->
         <div v-if="rankingList.length > 0" class="champion-showcase">
-          <div class="champion-crown">👑</div>
+          <div class="champion-badge">NO.1</div>
           <div class="champion-info">
+            <div class="champion-label">当前榜首</div>
             <div class="champion-name">{{ rankingList[0].studentName }}</div>
-            <div class="champion-score">{{ rankingList[0].score }}分</div>
-            <div class="champion-title">🎉 当前考试之王！🎉</div>
           </div>
+          <div class="champion-score">{{ rankingList[0].score }}<span class="champion-unit">分</span></div>
         </div>
 
         <div v-if="loading" class="loading-container">
@@ -82,28 +75,28 @@
             :class="{ 'top-three': index < 3 }"
           >
             <div class="rank-number" :class="getRankClass(index + 1)">
-              <span v-if="index === 0">🥇</span>
-              <span v-else-if="index === 1">🥈</span>
-              <span v-else-if="index === 2">🥉</span>
-              <span v-else>{{ index + 1 }}</span>
+              <span>{{ index + 1 }}</span>
             </div>
             <div class="student-info">
               <div class="student-name">{{ record.studentName }}</div>
-              <div class="paper-name">📝 {{ record.paper?.name }}</div>
-              <div class="exam-time">📅 {{ formatDateTime(record.endTime) }}</div>
+              <div class="paper-name">{{ record.paper?.name }}</div>
+              <div class="exam-time">{{ formatDateTime(record.endTime) }}</div>
             </div>
             <div class="score-info">
-              <div class="score">{{ record.score }}</div>
-              <div class="total-score">/ {{ record.paper?.totalScore }}</div>
-              <div class="percentage">
-                {{ calculatePercentage(record.score, record.paper?.totalScore) }}%
+              <div class="score-line">
+                <span class="score">{{ record.score }}</span>
+                <span class="total-score">/ {{ record.paper?.totalScore }}</span>
+                <span class="percentage">{{ calculatePercentage(record.score, record.paper?.totalScore) }}%</span>
+              </div>
+              <div class="score-track">
+                <i class="score-fill" :style="{ width: calculatePercentage(record.score, record.paper?.totalScore) + '%' }"></i>
               </div>
             </div>
           </div>
         </div>
         
         <div v-else class="empty-state">
-          <div class="empty-icon">📭</div>
+          <div class="empty-icon">—</div>
           <div class="empty-text">暂无排行榜数据</div>
           <div class="empty-hint">快去参加考试，成为第一个上榜的人吧！</div>
         </div>
@@ -114,28 +107,24 @@
         <div class="stats-title">{{ statsTitle }}</div>
         <div class="stats-vertical">
           <div class="stat-card-vertical">
-            <div class="stat-icon">👥</div>
             <div class="stat-info">
               <div class="stat-value">{{ totalParticipants }}</div>
               <div class="stat-label">参与人数</div>
             </div>
           </div>
           <div class="stat-card-vertical">
-            <div class="stat-icon">📊</div>
             <div class="stat-info">
               <div class="stat-value">{{ averageScore }}</div>
               <div class="stat-label">平均分</div>
             </div>
           </div>
           <div class="stat-card-vertical">
-            <div class="stat-icon">🎯</div>
             <div class="stat-info">
               <div class="stat-value">{{ maxScore }}</div>
               <div class="stat-label">最高分</div>
             </div>
           </div>
           <div class="stat-card-vertical">
-            <div class="stat-icon">📉</div>
             <div class="stat-info">
               <div class="stat-value">{{ minScore }}</div>
               <div class="stat-label">最低分</div>
@@ -147,16 +136,11 @@
 
     <!-- 底部激励区域 -->
     <div class="motivation-section">
-      <div class="motivation-text">💪 每一次挑战都是成长的机会！加油冲刺更高的排名吧！</div>
-      <div class="floating-emojis">
-        <span class="emoji">🌟</span>
-        <span class="emoji">🚀</span>
-        <span class="emoji">💎</span>
-        <span class="emoji">🔥</span>
-      </div>
+      <div class="motivation-text">每一次挑战，都是向更高名次的一次靠近</div>
     </div>
   </div>
-</template>
+  <BackHome />
+  </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
@@ -197,9 +181,9 @@ const totalParticipants = computed(() => {
 const statsTitle = computed(() => {
   if (selectedPaperId.value) {
     const selectedPaper = paperList.value.find(p => p.id === selectedPaperId.value)
-    return `📊 ${selectedPaper?.name || '选中试卷'} 统计`
+    return `${selectedPaper?.name || '选中试卷'} 统计`
   }
-  return '📊 全部试卷统计'
+  return '全部试卷统计'
 })
 
 // 获取试卷列表
@@ -279,736 +263,421 @@ onMounted(() => {
 </script>
 
 <style scoped>
-/* 全局背景 */
-html, body {
-  margin: 0;
-  padding: 0;
-  min-height: 100vh;
-}
+/* ============================================================
+   排行榜 · 「荣誉榜 · 浅色」设计（对标全局 #f5f7fa + Element 蓝）
+   白卡片 + 金银铜奖牌徽章 + 衬线大数字
+   ============================================================ */
 
 .exam-ranking-page {
-  padding: 20px;
+  position: relative;
+  min-height: 100vh;
+  padding: 44px 24px 40px;
   max-width: 1200px;
   margin: 0 auto;
-  background: linear-gradient(135deg, #a8b5ff 0%, #b8c5ff 100%);
-  min-height: 100vh;
-  position: relative;
+  font-variant-numeric: tabular-nums;
 }
-
-/* 添加全屏背景 */
+/* 浅色背景：淡蓝渐出 + 细点纹理 */
 .exam-ranking-page::before {
   content: '';
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(135deg, #a8b5ff 0%, #b8c5ff 100%);
+  inset: 0;
   z-index: -1;
+  background:
+    radial-gradient(900px 400px at 50% -100px, rgba(64, 158, 255, 0.10), transparent 62%),
+    radial-gradient(rgba(47, 86, 143, 0.05) 1px, transparent 1.5px),
+    linear-gradient(180deg, #f6f9fd 0%, #eef3f9 60%, #eaf0f7 100%);
+  background-size: auto, 26px 26px, auto;
 }
 
-/* 页面标题重新设计 */
+/* ---------- 页头 ---------- */
 .page-header {
   text-align: center;
-  margin-bottom: 40px;
-  position: relative;
+  margin-bottom: 34px;
 }
-
-.header-decoration {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 20px;
-  margin-bottom: 20px;
+.header-eyebrow {
+  display: inline-block;
+  font-size: 12px;
+  letter-spacing: 6px;
+  color: #2f6bdf;
+  border: 1px solid rgba(47, 107, 223, 0.4);
+  background: rgba(47, 107, 223, 0.04);
+  padding: 5px 16px 5px 22px;
+  border-radius: 999px;
+  margin-bottom: 16px;
 }
-
-.trophy-animation {
-  font-size: 48px;
-  animation: bounce 2s ease-in-out infinite;
-}
-
-.stars {
-  display: flex;
-  gap: 10px;
-}
-
-.star {
-  font-size: 24px;
-  animation: twinkle 1.5s ease-in-out infinite;
-}
-
-.star:nth-child(2) {
-  animation-delay: 0.5s;
-}
-
-.star:nth-child(3) {
-  animation-delay: 1s;
-}
-
 .main-title {
+  font-family: "Noto Serif SC", "Source Han Serif SC", "Songti SC", STSong, SimSun, serif;
   font-size: 36px;
-  color: white;
-  margin: 0 0 15px;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
   font-weight: 700;
+  letter-spacing: 10px;
+  text-indent: 10px;
+  color: #1f2d3d;
+  margin: 0 0 10px;
 }
-
 .subtitle {
-  color: rgba(255, 255, 255, 0.9);
-  margin: 0 0 20px;
-  font-size: 18px;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  color: #8492a6;
+  margin: 0 0 16px;
+  font-size: 14px;
+  letter-spacing: 3px;
 }
-
 .title-underline {
-  width: 100px;
-  height: 4px;
-  background: linear-gradient(90deg, #ff6b6b, #ffa500, #48bb78);
+  width: 72px;
+  height: 3px;
   margin: 0 auto;
   border-radius: 2px;
-  animation: rainbow 3s ease-in-out infinite;
+  background: linear-gradient(90deg, transparent, #2f6bdf, transparent);
 }
 
-/* 筛选条件美化 */
+/* ---------- 筛选条：白卡片 ---------- */
 .filter-bar {
   display: flex;
-  gap: 20px;
-  margin-bottom: 30px;
+  gap: 16px;
+  margin-bottom: 26px;
   justify-content: center;
   align-items: center;
-  background: rgba(255, 255, 255, 0.15);
-  padding: 20px;
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  flex-wrap: wrap;
+  background: #ffffff;
+  border: 1px solid #e4eaf2;
+  padding: 14px 20px;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(31, 59, 115, 0.05);
 }
-
 .filter-label {
-  color: white;
-  font-weight: 600;
-  font-size: 16px;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  color: #5a6b85;
+  font-size: 14px;
+  letter-spacing: 4px;
+  padding-right: 4px;
+  border-right: 1px solid #e4eaf2;
 }
-
 .custom-select {
-  border-radius: 12px;
+  width: 280px;
 }
-
 .refresh-btn {
-  border-radius: 12px !important;
+  border-radius: 8px !important;
   font-weight: 600 !important;
-  padding: 12px 24px !important;
-  background: linear-gradient(135deg, #ff6b6b, #ffa500) !important;
-  border: none !important;
-  box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3) !important;
-  transition: all 0.3s ease !important;
+  padding: 11px 22px !important;
 }
 
-.refresh-btn:hover {
-  transform: translateY(-2px) !important;
-  box-shadow: 0 6px 20px rgba(255, 107, 107, 0.4) !important;
-}
-
-/* 冠军展示区 */
-.champion-showcase {
-  background: linear-gradient(135deg, #ffd700, #ffed4e);
-  padding: 30px;
-  border-radius: 20px;
-  text-align: center;
-  margin-bottom: 30px;
-  position: relative;
-  overflow: hidden;
-  box-shadow: 0 8px 32px rgba(255, 215, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-}
-
-.champion-showcase::before {
-  content: '';
-  position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-  animation: sweep 3s ease-in-out infinite;
-}
-
-.champion-crown {
-  font-size: 48px;
-  margin-bottom: 15px;
-  animation: crownFloat 2s ease-in-out infinite;
-}
-
-.champion-name {
-  font-size: 28px;
-  font-weight: 800;
-  color: #b8860b;
-  margin-bottom: 10px;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
-.champion-score {
-  font-size: 36px;
-  font-weight: 900;
-  color: #8b6914;
-  margin-bottom: 10px;
-}
-
-.champion-title {
-  font-size: 16px;
-  color: #8b6914;
-  font-weight: 600;
-}
-
-/* 主内容区域 */
+/* ---------- 主区 ---------- */
 .main-content {
   display: flex;
-  gap: 30px;
+  gap: 22px;
   align-items: flex-start;
 }
-
 .ranking-container {
-  flex: 2;
-  margin-bottom: 0;
+  flex: 1;
+  min-width: 0;
 }
 
-.loading-container {
-  padding: 40px;
-  text-align: center;
+/* ---------- 榜首横幅：浅金 ---------- */
+.champion-showcase {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 20px 26px;
+  margin-bottom: 18px;
+  border-radius: 12px;
+  background:
+    linear-gradient(120deg, rgba(212, 175, 55, 0.12), rgba(212, 175, 55, 0.02) 55%),
+    #fffdf6;
+  border: 1px solid #ecd9a0;
+  box-shadow: 0 4px 16px -6px rgba(196, 154, 42, 0.35);
+  overflow: hidden;
+}
+.champion-showcase::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -60%;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255, 236, 170, 0.35), transparent);
+  animation: sheen 4.5s ease-in-out infinite;
+}
+@keyframes sheen {
+  0%, 55% { left: -60%; }
+  85%, 100% { left: 130%; }
+}
+.champion-badge {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #5c4308;
+  background: linear-gradient(160deg, #f3d97e, #d4af37);
+  padding: 8px 12px;
+  border-radius: 8px;
+  box-shadow: 0 3px 10px -2px rgba(196, 154, 42, 0.55);
+}
+.champion-info {
+  flex: 1;
+  min-width: 0;
+}
+.champion-label {
+  font-size: 12px;
+  letter-spacing: 5px;
+  color: #a08838;
+  margin-bottom: 4px;
+}
+.champion-name {
+  font-family: "Noto Serif SC", "Source Han Serif SC", "Songti SC", STSong, SimSun, serif;
+  font-size: 26px;
+  font-weight: 700;
+  color: #1f2d3d;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.champion-score {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 42px;
+  font-weight: 700;
+  color: #b8860b;
+  line-height: 1;
+}
+.champion-unit {
+  font-size: 15px;
+  color: #a08838;
+  margin-left: 4px;
 }
 
+/* ---------- 榜单行：白卡片 ---------- */
 .ranking-list {
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: 10px;
 }
-
 .ranking-item {
   display: flex;
   align-items: center;
-  background: rgba(255, 255, 255, 0.9);
-  border-radius: 16px;
-  padding: 20px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  gap: 18px;
+  padding: 16px 20px;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid #e6ecf4;
+  box-shadow: 0 1px 4px rgba(31, 59, 115, 0.04);
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  animation: rise 0.5s ease backwards;
 }
-
+.ranking-item:nth-child(1) { animation-delay: 0.05s; }
+.ranking-item:nth-child(2) { animation-delay: 0.1s; }
+.ranking-item:nth-child(3) { animation-delay: 0.15s; }
+.ranking-item:nth-child(4) { animation-delay: 0.2s; }
+.ranking-item:nth-child(5) { animation-delay: 0.25s; }
+.ranking-item:nth-child(6) { animation-delay: 0.3s; }
 .ranking-item:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  transform: translateX(4px);
+  border-color: rgba(47, 107, 223, 0.4);
+  box-shadow: 0 4px 14px rgba(31, 59, 115, 0.1);
+}
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-/* 前三名特殊样式保持不变，但调整文字颜色 */
-.ranking-item.top-three {
-  color: white;
-  border: 2px solid transparent;
-  position: relative;
-  overflow: hidden;
-  font-weight: 500;
-}
-
-/* 第一名 - 优雅橙红色 */
-.ranking-item.top-three:nth-child(1) {
-  background: linear-gradient(135deg, #ff6b6b 0%, #ffa500 50%, #ff8c42 100%);
-  border-color: #ff6b6b;
-  box-shadow: 0 6px 25px rgba(255, 107, 107, 0.4);
-}
-
-.ranking-item.top-three:nth-child(1)::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, #ff4757, #ff6b6b, #ff4757);
-  animation: firstShine 2s ease-in-out infinite;
-}
-
-/* 第二名 - 现代蓝紫色 */
-.ranking-item.top-three:nth-child(2) {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #5a67d8 100%);
-  border-color: #667eea;
-  box-shadow: 0 6px 25px rgba(102, 126, 234, 0.4);
-}
-
-.ranking-item.top-three:nth-child(2)::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, #4c63d2, #667eea, #4c63d2);
-  animation: secondShine 2.5s ease-in-out infinite;
-}
-
-/* 第三名 - 温暖绿色 */
-.ranking-item.top-three:nth-child(3) {
-  background: linear-gradient(135deg, #48bb78 0%, #38a169 50%, #2f855a 100%);
-  border-color: #48bb78;
-  box-shadow: 0 6px 25px rgba(72, 187, 120, 0.4);
-}
-
-.ranking-item.top-three:nth-child(3)::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, #38a169, #48bb78, #38a169);
-  animation: thirdShine 3s ease-in-out infinite;
-}
-
-/* 前三名悬停效果增强 */
-.ranking-item.top-three:hover {
-  transform: translateY(-4px) scale(1.01);
-  z-index: 10;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
-}
-
+/* 金银铜奖牌徽章 */
 .rank-number {
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
+  flex: none;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
-  font-weight: bold;
-  margin-right: 20px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  transition: all 0.3s ease;
+  border-radius: 50%;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 17px;
+  font-weight: 700;
+  color: #7a8699;
+  border: 1px solid #dfe6ef;
+  background: #f4f7fb;
 }
-
-.ranking-item:hover .rank-number {
-  transform: scale(1.1);
-}
-
 .rank-gold {
-  background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
-  color: #8b6914;
-  border: 3px solid #ffed4e;
-  box-shadow: 0 4px 20px rgba(255, 215, 0, 0.5);
+  color: #5c4308;
+  background: linear-gradient(150deg, #f2d67e 0%, #d4af37 45%, #c09a2e 100%);
+  border-color: #e8c96a;
+  box-shadow: 0 0 12px -2px rgba(212, 175, 55, 0.6);
 }
-
 .rank-silver {
-  background: linear-gradient(135deg, #c0c0c0 0%, #e5e5e5 100%);
-  color: #666;
-  border: 3px solid #e5e5e5;
-  box-shadow: 0 4px 20px rgba(192, 192, 192, 0.5);
+  color: #3d4652;
+  background: linear-gradient(150deg, #eef1f5 0%, #c3cad4 55%, #9aa5b3 100%);
+  border-color: #d5dbe3;
 }
-
 .rank-bronze {
-  background: linear-gradient(135deg, #cd7f32 0%, #daa520 100%);
-  color: white;
-  border: 3px solid #daa520;
-  box-shadow: 0 4px 20px rgba(205, 127, 50, 0.5);
+  color: #4a2f18;
+  background: linear-gradient(150deg, #e0aa74 0%, #c08348 55%, #9a6431 100%);
+  border-color: #d9a06b;
+}
+.ranking-item.top-three {
+  background: #fffdf6;
+  border-color: #f0e2b8;
 }
 
-.rank-normal {
-  background: #667eea;
-  color: white;
-  border: 2px solid #5a67d8;
-}
-
+/* 行内信息 */
 .student-info {
   flex: 1;
+  min-width: 0;
 }
-
 .student-name {
-  font-size: 18px;
+  font-family: "Noto Serif SC", "Source Han Serif SC", "Songti SC", STSong, SimSun, serif;
+  font-size: 17px;
   font-weight: 700;
-  margin-bottom: 5px;
-  color: #2d3748;
-}
-
-.paper-name {
-  font-size: 14px;
-  color: #4a5568;
+  color: #253244;
   margin-bottom: 3px;
-  font-weight: 500;
 }
-
+.paper-name {
+  font-size: 12.5px;
+  color: #8492a6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .exam-time {
   font-size: 12px;
-  color: #718096;
-  font-weight: 500;
+  color: #a5b0c0;
+  margin-top: 2px;
 }
 
+/* 分数：衬线大数字 + 得分率细条 */
 .score-info {
+  flex: none;
+  width: 168px;
   text-align: right;
-  margin-left: 20px;
 }
-
+.score-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 5px;
+}
 .score {
-  font-size: 24px;
-  font-weight: bold;
-  color: #667eea;
-}
-
-.total-score {
-  font-size: 14px;
-  color: #4a5568;
-  font-weight: 600;
-}
-
-.percentage {
-  font-size: 12px;
-  color: #48bb78;
-  margin-top: 5px;
-  font-weight: 600;
-}
-
-/* 前三名文字样式统一 */
-.top-three .score {
-  color: white;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 28px;
   font-weight: 700;
+  color: #2f6bdf;
+  line-height: 1;
+}
+.top-three .score { color: #b8860b; }
+.total-score {
+  font-size: 13px;
+  color: #a5b0c0;
+}
+.percentage {
+  font-size: 12.5px;
+  color: #7a8699;
+  margin-left: 6px;
+}
+.score-track {
+  margin-top: 8px;
+  height: 4px;
+  border-radius: 2px;
+  background: #e8eef5;
+  overflow: hidden;
+}
+.score-fill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #6aa7ff, #2f6bdf);
+  transition: width 0.6s ease;
 }
 
-.top-three .total-score {
-  color: rgba(255, 255, 255, 0.9);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-}
-
-.top-three .percentage {
-  color: rgba(255, 255, 255, 0.95);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-  font-weight: 600;
-}
-
-.top-three .student-name {
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-  font-weight: 600;
-  color: white;
-}
-
-.top-three .paper-name {
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-  color: rgba(255, 255, 255, 0.9);
-}
-
-.top-three .exam-time {
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-  color: rgba(255, 255, 255, 0.8);
-}
-
-/* 前三名排名圆圈重新设计 */
-.ranking-item.top-three:nth-child(1) .rank-number {
-  background: rgba(255, 255, 255, 0.95);
-  color: #e53e3e;
-  border: 3px solid rgba(255, 255, 255, 0.8);
-  font-weight: 900;
-  font-size: 22px;
-  text-shadow: none;
-}
-
-.ranking-item.top-three:nth-child(2) .rank-number {
-  background: rgba(255, 255, 255, 0.95);
-  color: #4c63d2;
-  border: 3px solid rgba(255, 255, 255, 0.8);
-  font-weight: 800;
-  font-size: 22px;
-  text-shadow: none;
-}
-
-.ranking-item.top-three:nth-child(3) .rank-number {
-  background: rgba(255, 255, 255, 0.95);
-  color: #2f855a;
-  border: 3px solid rgba(255, 255, 255, 0.8);
-  font-weight: 800;
-  font-size: 22px;
-  text-shadow: none;
-}
-
-/* 统计侧边栏 */
+/* ---------- 右侧统计：白卡片 ---------- */
 .statistics-sidebar {
-  flex: 1;
-  max-width: 300px;
-  min-width: 280px;
-  padding: 20px;
-  background: rgba(255, 255, 255, 0.9);
-  border-radius: 16px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-  height: fit-content;
+  flex: none;
+  width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   position: sticky;
   top: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
 }
-
 .stats-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #2d3748;
-  margin-bottom: 15px;
+  font-family: "Noto Serif SC", "Source Han Serif SC", "Songti SC", STSong, SimSun, serif;
+  font-size: 14px;
+  letter-spacing: 3px;
+  color: #5a6b85;
   padding-bottom: 8px;
-  border-bottom: 2px solid #e1ecf4;
-  text-align: center;
-  word-break: break-all;
-  line-height: 1.4;
+  border-bottom: 2px solid rgba(47, 107, 223, 0.35);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-
 .stats-vertical {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 12px;
 }
-
 .stat-card-vertical {
-  flex: 1;
-  text-align: center;
-  padding: 20px;
-  background: rgba(248, 249, 255, 0.8);
-  color: #333;
-  border-radius: 12px;
-  border: 1px solid #e1ecf4;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  transition: all 0.3s ease;
+  padding: 16px 18px;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid #e6ecf4;
+  box-shadow: 0 1px 4px rgba(31, 59, 115, 0.04);
 }
-
-.stat-card-vertical:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
-  background: rgba(240, 246, 255, 0.9);
-}
-
-.stat-icon {
-  font-size: 28px;
-  margin-bottom: 12px;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1));
-}
-
-.stat-info {
-  text-align: center;
-}
-
 .stat-value {
-  font-size: 24px;
-  font-weight: bold;
-  color: #667eea;
-  margin-bottom: 6px;
-  text-shadow: none;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 30px;
+  font-weight: 700;
+  color: #2f6bdf;
+  line-height: 1.1;
 }
-
 .stat-label {
-  font-size: 13px;
-  color: #4a5568;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  margin-top: 4px;
+  font-size: 12.5px;
+  letter-spacing: 2px;
+  color: #8492a6;
 }
 
-/* 空状态 */
+/* ---------- 空状态 / 加载 ---------- */
+.loading-container {
+  padding: 20px;
+}
 .empty-state {
   text-align: center;
-  padding: 60px 20px;
-  background: rgba(255, 255, 255, 0.9);
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 70px 0 60px;
 }
-
 .empty-icon {
-  font-size: 64px;
-  margin-bottom: 20px;
-  animation: float 3s ease-in-out infinite;
+  font-family: Georgia, serif;
+  font-size: 40px;
+  color: #c9d4e2;
+  margin-bottom: 14px;
 }
-
 .empty-text {
-  font-size: 20px;
-  color: #4a5568;
-  margin-bottom: 10px;
-  font-weight: 600;
-}
-
-.empty-hint {
-  font-size: 14px;
-  color: #718096;
-  font-weight: 500;
-}
-
-/* 底部激励区域 */
-.motivation-section {
-  margin-top: 40px;
-  text-align: center;
-  background: rgba(255, 255, 255, 0.15);
-  padding: 30px;
-  border-radius: 20px;
-  position: relative;
-  overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.motivation-text {
+  font-family: "Noto Serif SC", "Source Han Serif SC", "Songti SC", STSong, SimSun, serif;
   font-size: 18px;
-  color: white;
-  margin-bottom: 20px;
-  font-weight: 600;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  color: #4a5a70;
+}
+.empty-hint {
+  margin-top: 8px;
+  font-size: 13px;
+  color: #a5b0c0;
 }
 
-.floating-emojis {
-  display: flex;
-  justify-content: center;
-  gap: 30px;
+/* ---------- 底部 ---------- */
+.motivation-section {
+  margin-top: 34px;
+  text-align: center;
+}
+.motivation-text {
+  display: inline-block;
+  font-size: 13px;
+  letter-spacing: 3px;
+  color: #a5b0c0;
+  padding: 0 24px 14px;
+  border-bottom: 1px solid #dfe6ef;
 }
 
-.emoji {
-  font-size: 32px;
-  animation: float 2s ease-in-out infinite;
+/* ---------- 窄屏 ---------- */
+@media (max-width: 900px) {
+  .main-content { flex-direction: column; }
+  .statistics-sidebar { width: 100%; position: static; }
+  .stats-vertical { flex-direction: row; }
+  .stat-card-vertical { flex: 1; }
 }
-
-.emoji:nth-child(1) { animation-delay: 0s; }
-.emoji:nth-child(2) { animation-delay: 0.5s; }
-.emoji:nth-child(3) { animation-delay: 1s; }
-.emoji:nth-child(4) { animation-delay: 1.5s; }
-
-/* 动画效果 */
-@keyframes bounce {
-  0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
-  40% { transform: translateY(-30px); }
-  60% { transform: translateY(-15px); }
+@media (max-width: 640px) {
+  .champion-showcase { flex-wrap: wrap; }
+  .score-info { width: 120px; }
+  .score { font-size: 22px; }
 }
-
-@keyframes twinkle {
-  0%, 100% { opacity: 0.5; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.2); }
-}
-
-@keyframes rainbow {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
-@keyframes sweep {
-  0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
-  100% { transform: translateX(100%) translateY(100%) rotate(45deg); }
-}
-
-@keyframes crownFloat {
-  0%, 100% { transform: translateY(0) rotate(-3deg); }
-  50% { transform: translateY(-10px) rotate(3deg); }
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-20px); }
-}
-
-@keyframes firstShine {
-  0%, 100% { opacity: 0.8; }
-  50% { opacity: 1; }
-}
-
-@keyframes secondShine {
-  0%, 100% { opacity: 0.7; }
-  50% { opacity: 1; }
-}
-
-@keyframes thirdShine {
-  0%, 100% { opacity: 0.6; }
-  50% { opacity: 0.9; }
-}
-
-/* 响应式设计 */
-@media (max-width: 768px) {
-  .exam-ranking-page {
-    padding: 15px;
-  }
-  
-  .main-title {
-    font-size: 28px;
-  }
-  
-  .subtitle {
-    font-size: 16px;
-  }
-  
-  .filter-bar {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
-  }
-  
-  .main-content {
-    flex-direction: column;
-    gap: 20px;
-  }
-  
-  .ranking-container {
-    flex: none;
-  }
-  
-  .statistics-sidebar {
-    position: static;
-    max-width: none;
-    min-width: auto;
-    margin-top: 20px;
-  }
-  
-  .champion-showcase {
-    padding: 20px;
-  }
-  
-  .champion-name {
-    font-size: 24px;
-  }
-  
-  .champion-score {
-    font-size: 28px;
-  }
-  
-  .stats-vertical {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 15px;
-  }
-  
-  .stat-card-vertical {
-    padding: 15px;
-  }
-  
-  .stat-value {
-    font-size: 20px;
-  }
-  
-  .stat-icon {
-    font-size: 24px;
-    margin-bottom: 8px;
-  }
-  
-  .ranking-item {
-    flex-direction: column;
-    text-align: center;
-    gap: 15px;
-    padding: 15px;
-  }
-  
-  .rank-number {
-    margin-right: 0;
-    width: 50px;
-    height: 50px;
-    font-size: 18px;
-  }
-  
-  .score-info {
-    margin-left: 0;
-  }
-  
-  .score {
-    font-size: 20px;
-  }
-  
-  .floating-emojis {
-    gap: 20px;
-  }
-  
-  .emoji {
-    font-size: 24px;
-  }
-}
-</style> 
+</style>
