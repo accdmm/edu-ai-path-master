@@ -173,7 +173,8 @@
     </el-dialog>
     -->
   </div>
-</template>
+  <BackHome />
+  </template>
 
 <script>
 import { ref, reactive, computed, watch } from 'vue'

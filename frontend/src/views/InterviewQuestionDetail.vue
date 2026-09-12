@@ -2,6 +2,7 @@
   <div class="interview-question-detail">
     <div class="detail-header">
       <el-button @click="$router.go(-1)"><el-icon><Back /></el-icon>返回</el-button>
+      <el-button @click="$router.push('/')"><el-icon><HomeFilled /></el-icon>首页</el-button>
       <h2>真题详情</h2>
     </div>
     
@@ -227,7 +228,7 @@
 </template>
 
 <script>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
@@ -338,6 +339,13 @@ export default {
       }
     }
     
+    // 相关推荐跳转：路由参数变化时组件被复用不会重新 mounted，需手动重载
+    watch(() => route.params.id, (newId, oldId) => {
+      if (newId && newId !== oldId) {
+        fetchQuestionDetail()
+      }
+    })
+
     // 获取相关题目
     const fetchRelatedQuestions = async () => {
       try {

@@ -176,7 +176,8 @@
       </div>
     </div>
   </div>
-</template>
+  <BackHome />
+  </template>
 
 <script>
 import { ref, onMounted } from 'vue'

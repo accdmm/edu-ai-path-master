@@ -236,7 +236,8 @@
       </div>
     </el-dialog>
   </div>
-</template>
+  <BackHome />
+  </template>
 
 <script>
 import { ref, onMounted, nextTick } from 'vue'

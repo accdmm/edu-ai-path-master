@@ -41,7 +41,8 @@
       </div>
     </div>
   </div>
-</template>
+  <BackHome />
+  </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'

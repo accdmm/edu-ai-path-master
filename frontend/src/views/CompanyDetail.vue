@@ -108,7 +108,8 @@
       </div>
     </div>
   </div>
-</template>
+  <BackHome />
+  </template>
 
 <script>
 import { ref, reactive, computed, onMounted } from 'vue'

@@ -5,6 +5,10 @@
         <el-icon><ArrowLeft /></el-icon>
         返回
       </el-button>
+      <el-button plain @click="$router.push('/')">
+        <el-icon><HomeFilled /></el-icon>
+        首页
+      </el-button>
       <div class="header-info">
         <h2>试卷详情</h2>
         <p>查看试卷题目与参考答案</p>

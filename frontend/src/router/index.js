@@ -278,7 +278,14 @@ const routes = [
 // 创建路由实例
 const router = createRouter({
   history: createWebHistory(),
-  routes
+  routes,
+  // 路由切换后回到页面顶部（相关推荐/详情互跳场景），浏览器前进后退保留原位置
+  scrollBehavior(to, from, savedPosition) {
+    if (savedPosition) {
+      return savedPosition
+    }
+    return { top: 0 }
+  }
 })
 
 // 路由守卫

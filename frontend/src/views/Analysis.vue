@@ -107,7 +107,8 @@
       </div>
     </template>
   </div>
-</template>
+  <BackHome />
+  </template>
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'

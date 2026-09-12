@@ -71,7 +71,8 @@
       </el-card>
     </div>
   </div>
-</template>
+  <BackHome />
+  </template>
 
 <script>
 import { ref, reactive, onMounted } from 'vue'

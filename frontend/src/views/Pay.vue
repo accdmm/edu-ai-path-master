@@ -45,7 +45,8 @@
       </el-table>
     </el-dialog>
   </div>
-</template>
+  <BackHome />
+  </template>
 
 <script setup>
 import { ref, reactive } from 'vue'

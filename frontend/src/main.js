@@ -5,6 +5,7 @@ import 'element-plus/dist/index.css'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import App from './App.vue'
 import router from './router'
+import BackHome from './components/BackHome.vue'
 
 // 创建Vue应用实例
 const app = createApp(App)
@@ -13,6 +14,9 @@ const app = createApp(App)
 for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
   app.component(key, component)
 }
+
+// 全局注册：悬浮“返回首页”按钮（各业务页面模板直接 <BackHome /> 使用）
+app.component('BackHome', BackHome)
 
 // 使用插件
 app.use(createPinia()) // 状态管理
