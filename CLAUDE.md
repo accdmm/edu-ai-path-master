@@ -15,7 +15,7 @@ edu-ai-path-master/
 │   └── src/
 ├── scripts/
 │   ├── init.sql                 # MySQL 建表脚本 + 种子数据
-│   └── mongodb-data/            # MongoDB 8.0.6 本地数据目录（运行中，27017）
+│   └── init.sql             # MySQL 建表脚本 + 种子数据（MongoDB 已迁至 D:\mongodb-data）
 └── README.md                    # 面向用户的启动说明
 ```
 
@@ -83,9 +83,10 @@ edu-ai-path-master/
   - 默认用户：admin/teacher/student，密码均 123456（BCrypt）。
   - 商业化种子：4 家企业（阿里/字节/腾讯/美团）、12 道真题、3 个邀请码（`EDU2024DEMO` 已被 user3 激活、`EDU2024VIP0`、`EDU2024ENTR`），user3 初始积分 100/100。
   - 注意：`mysql` 命令在 PowerShell 中无法用 `<` 重定向，需用 `mysql -e "source 路径"`，且 PowerShell 控制台中文会乱码（数据本身 UTF-8 正常）。重跑 init.sql 加 `--default-character-set=utf8mb4`。
-- **MongoDB 8.0.6** 手动部署（winget 安装失败/超时后改 zip）：
-  - 二进制：`C:\Users\34147\AppData\Local\Temp\opencode\mongodb\mongodb-win32-x86_64-windows-8.0.6\bin`
-  - 数据目录：`scripts/mongodb-data`（mongod 运行于 27017）。
+- **MongoDB 8.0.6**（2026-09-12 已迁至 D 盘，原 Temp 副本与仓库内数据目录已删除）：
+  - 程序：`D:\mongodb\bin\mongod.exe`
+  - 数据目录：`D:\mongodb-data`
+  - 启动：`"D:\mongodb\bin\mongod.exe" --dbpath "D:\mongodb-data" --port 27017 --bind_ip 127.0.0.1`
 
 ### 前端（frontend/）
 - `npm install` + `npm run build`（vite build）通过。
@@ -206,8 +207,8 @@ cd frontend; npm run dev                                # 3001
 npm run build
 # MySQL 初始化（PowerShell 不能用 < 重定向）
 mysql -uroot -proot -e "source C:/Users/.../scripts/init.sql"
-# MongoDB 启动（若未运行）
-& "C:\Users\34147\AppData\Local\Temp\opencode\mongodb\mongodb-win32-x86_64-windows-8.0.6\bin\mongod.exe" --dbpath "scripts/mongodb-data" --port 27017 --bind_ip 127.0.0.1
+# MongoDB 启动（若未运行；程序与数据均在 D 盘）
+"D:\mongodb\bin\mongod.exe" --dbpath "D:\mongodb-data" --port 27017 --bind_ip 127.0.0.1
 ```
 
 ## 8. 技术栈速览
