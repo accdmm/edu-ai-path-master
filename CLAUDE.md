@@ -149,7 +149,7 @@ pinecone:
 - **雷达图退化为直线已修复**：原因—答题只落在 1~2 个知识点分类，echarts 雷达 <3 轴就是一条线段。`LearningAnalysisServiceImpl` 雷达改按**题型**聚合（选择题/判断题/简答题 + 整体作答），保证 ≥4 轴成形状（`buildTypeRadar`），知识点掌握度仍由柱状图承载。已验证 admin：choice94/judge100/text0/overall70。
 - **分析页分类/卷名带 `*` 已修复**：根因—`AiGeneratedPaperServiceImpl.getOrCreateCategory` 把未清洗的 topic（含 `**` 与「套」前缀）直接存为分类名，存量 `C15=套 **JVM**`。修复：抽 `cleanTopic()`（去 markdown 符+压缩空白）供 `getOrCreateCategory`/`buildPaperName` 共用（后端防御）；`LearningAnalysisServiceImpl.normalizeName` 对展示名兜底清洗；DB 一次性 UPDATE 存量：C12`套Java集合框架测试`→`Java集合框架`、C13→`Java并发`、C14→`Java高并发`、C15→`JVM`，paper2/3 名 REPLACE 同步。
 - **注意**：PowerShell 控制台把中文显示成 `?` 是 GBK 渲染假象，DB/接口数据是正常 UTF-8，别被误导（用 HEX/python 验证）。
-- **后端当前 v18 运行中**：`DASHSCOPE_API_KEY` + `ALIPAY_PRIVATE_KEY` 完整值保存在 `C:\Users\34147\AppData\Local\Temp\opencode\launch_v18.ps1`（含 key，勿外发；重启时直接用它，别再手抄丢 key）。
+- **后端 v18 起密钥获取方式（2026-10-12 更新）**：`ALIPAY_PRIVATE_KEY` 已持久化到**用户环境变量**（`[Environment]::SetEnvironmentVariable('ALIPAY_PRIVATE_KEY', <值>, 'User')`；注意 `setx` 有 1024 字符截断限制，1624 字符的密钥会把 `setx` 截断，必须用 .NET API）。生效密钥对来源：`C:\Users\34147\Documents\支付宝开放平台密钥工具\密钥20260910100331\应用私钥RSA2048-敏感数据，请妥善保管.txt`（沙箱网关联调验签通过）。旧 `launch_v18.ps1` 已被系统清理，不再是密钥载体。`DASHSCOPE_API_KEY` 同样在用户环境变量中；`PINECONE_API_KEY` 仍未设置（AI 客服 RAG 检索会失效）。
 
 ### 5.2 业务完整性修复 + 单元测试（2026-09-11，27 测试全绿）
 
