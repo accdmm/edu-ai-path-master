@@ -1,5 +1,7 @@
 <template>
   <div class="login-page">
+    <AuthBackground variant="aurora" />
+
     <main class="auth-col">
       <header class="brand">
         <img src="@/assets/logo.svg" alt="" class="brand-mark" />
@@ -54,6 +56,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { login } from '@/api/user'
+import AuthBackground from '@/components/AuthBackground.vue'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -110,6 +113,8 @@ const handleLogin = async () => {
 }
 
 .auth-col {
+  position: relative;
+  z-index: 1; /* 内容层压在背景动画之上 */
   width: min(360px, 100%);
 }
 
