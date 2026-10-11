@@ -26,20 +26,20 @@ const isPaused = ref(false) // 页面不可见时暂停动画
 // 漂浮几何（考卷元素 ＋ ○ □）：位置贴左右两侧，避开中央内容列
 // mobile: true 的元素在小屏保留（贴最外侧），其余小屏隐藏
 const shapes = [
-  { kind: 'plus', left: '9%', top: '14%', size: 18, duration: 24, delay: -2, mobile: true },
-  { kind: 'square', left: '87%', top: '12%', size: 14, duration: 27, delay: -4, mobile: true },
-  { kind: 'ring', left: '15%', top: '38%', size: 14, duration: 28, delay: -9, mobile: false },
-  { kind: 'ring', left: '91%', top: '40%', size: 18, duration: 25, delay: -11, mobile: true },
-  { kind: 'square', left: '7%', top: '66%', size: 16, duration: 26, delay: -5, mobile: true },
-  { kind: 'plus', left: '85%', top: '70%', size: 20, duration: 29, delay: -6, mobile: false },
-  { kind: 'ring', left: '12%', top: '84%', size: 20, duration: 30, delay: -14, mobile: false },
-  { kind: 'square', left: '92%', top: '86%', size: 16, duration: 23, delay: -13, mobile: true },
-  { kind: 'plus', left: '80%', top: '24%', size: 14, duration: 22, delay: -7, mobile: false },
-  { kind: 'ring', left: '20%', top: '8%', size: 13, duration: 31, delay: -3, mobile: false },
-  { kind: 'plus', left: '24%', top: '58%', size: 12, duration: 33, delay: -10, mobile: false },
-  { kind: 'ring', left: '76%', top: '56%', size: 13, duration: 34, delay: -8, mobile: false },
-  { kind: 'square', left: '22%', top: '24%', size: 11, duration: 35, delay: -12, mobile: false },
-  { kind: 'square', left: '78%', top: '88%', size: 12, duration: 32, delay: -15, mobile: false }
+  { kind: 'plus', left: '9%', top: '14%', size: 18, duration: 6.4, delay: -1.2, mobile: true },
+  { kind: 'square', left: '87%', top: '12%', size: 14, duration: 7.6, delay: -4.5, mobile: true },
+  { kind: 'ring', left: '15%', top: '38%', size: 14, duration: 8.2, delay: -2.8, mobile: false },
+  { kind: 'ring', left: '91%', top: '40%', size: 18, duration: 6.9, delay: -6.1, mobile: true },
+  { kind: 'square', left: '7%', top: '66%', size: 16, duration: 7.9, delay: -3.4, mobile: true },
+  { kind: 'plus', left: '85%', top: '70%', size: 20, duration: 5.8, delay: -5.8, mobile: false },
+  { kind: 'ring', left: '12%', top: '84%', size: 20, duration: 8.6, delay: -1.9, mobile: false },
+  { kind: 'square', left: '92%', top: '86%', size: 16, duration: 6.6, delay: -7.0, mobile: true },
+  { kind: 'plus', left: '80%', top: '24%', size: 14, duration: 8.0, delay: -2.2, mobile: false },
+  { kind: 'ring', left: '20%', top: '8%', size: 13, duration: 6.1, delay: -4.0, mobile: false },
+  { kind: 'plus', left: '24%', top: '58%', size: 12, duration: 8.9, delay: -6.5, mobile: false },
+  { kind: 'ring', left: '76%', top: '56%', size: 13, duration: 7.1, delay: -3.1, mobile: false },
+  { kind: 'square', left: '22%', top: '24%', size: 11, duration: 7.4, delay: -5.2, mobile: false },
+  { kind: 'square', left: '78%', top: '88%', size: 12, duration: 5.5, delay: -1.5, mobile: false }
 ]
 
 const detectStatic = () => {
@@ -77,13 +77,14 @@ onBeforeUnmount(() => {
   contain: strict;
 }
 
-/* 漂浮几何：小小只、慢慢漂，只有 transform 动画（走合成层） */
+/* 漂浮几何：上下浮动 + 呼吸（透明度 0 → 峰值 → 0，形成「消失—出现」的节奏）
+   alternate 让一次完整呼吸 = 2 × duration（约 11–18s），负 delay 让各元素错峰 */
 .shape {
   position: absolute;
   display: block;
-  opacity: .55;
-  will-change: transform;
-  animation: auth-float 24s ease-in-out infinite alternate;
+  opacity: 0; /* 由动画接管；动画关闭时由 .is-static 兜底显示 */
+  will-change: transform, opacity;
+  animation: auth-breathe 7s ease-in-out infinite alternate;
 }
 
 .shape--plus {
@@ -102,12 +103,14 @@ onBeforeUnmount(() => {
   border-radius: 4px;
 }
 
-@keyframes auth-float {
+@keyframes auth-breathe {
   from {
-    transform: translate3d(0, -10px, 0) rotate(-6deg);
+    opacity: 0;
+    transform: translate3d(0, -16px, 0) rotate(-8deg) scale(.86);
   }
   to {
-    transform: translate3d(0, 12px, 0) rotate(8deg);
+    opacity: .72;
+    transform: translate3d(0, 16px, 0) rotate(8deg) scale(1.06);
   }
 }
 
@@ -116,14 +119,20 @@ onBeforeUnmount(() => {
   animation: none !important;
 }
 
+/* 动画关闭时兜底显示（否则 opacity:0 会让图形彻底不可见） */
+.auth-bg.is-static .shape {
+  opacity: .45;
+  transform: none;
+}
+
 .auth-bg.is-paused * {
   animation-play-state: paused !important;
 }
 
-/* ============ 响应式：小屏只保留最外侧元素、进一步降低存在感 ============ */
+/* ============ 响应式：小屏只保留最外侧元素、整体再降一层存在感 ============ */
 @media (max-width: 768px) {
-  .shape {
-    opacity: .4;
+  .auth-bg {
+    opacity: .75;
   }
 
   .shape.is-mobile-hidden {
