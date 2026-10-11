@@ -1,6 +1,6 @@
 <template>
   <div class="login-page">
-    <AuthBackground variant="aurora" />
+    <AuthBackground />
 
     <main class="auth-col">
       <header class="brand">

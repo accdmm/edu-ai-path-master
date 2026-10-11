@@ -207,8 +207,8 @@ pinecone:
 - **改动**：`Login.vue` / `Register.vue` 重写为「白底 + 单列 360px + 顶部 logo/站名 + 可见 label」；删除深色玻璃拟态（`#1a1a2e` 渐变 / 毛玻璃 / `#667eea→#764ba2` 紫渐变按钮）与 🎓 emoji；按钮改原生 `<button>`（44px/圆角 8）；底部保留注册/返回首页入口并新增「按 Enter 快速提交」提示。
 - **可访问性（一并修复）**：原生 `<label>` 包裹 `el-input`（点击标签即聚焦，已实测）；`autocomplete`=username / current-password / new-password；行内错误 `role="alert" aria-live="polite"`（空提交「请输入用户名」、错误密码「用户名或密码错误」、注册「两次输入的密码不一致」均已实测）；改用原生 `<form>` + `type=submit`，**注册页此前不支持回车提交的问题一并修复**；`focus-visible` 2px 焦点环 + 输入框聚焦外发光。
 - **验证**：`npm run build` 通过；两页浏览器实测全部断言通过，控制台 0 error。
-- **背景动画（2026-10-11）**：新增可切换组件 `frontend/src/components/AuthBackground.vue`，登录/注册页当前用 `variant="aurora"`（纯 CSS 流动光晕，0 JS）；另有 `shapes`（漂浮几何 ＋○□）/ `grid`（点阵呼吸 + 两层鼠标视差，`pointermove` 节流 ≈30fps）。三套方案可在 `frontend/public/login-styles-preview.html` 的「背景动画」区块实时对比。
-  性能与降级：只动画 `transform`/`opacity`（合成层）+ `contain: strict` + `pointer-events: none` + `aria-hidden`；`prefers-reduced-motion` 或 CPU ≤ 2 核 / 内存 ≤ 2GB → 全部静止；标签页切后台 → `animation-play-state: paused`；≤768px 自动减少元素并放慢。实测（Chromium）：**60.2 FPS、最长帧 18.1ms、掉帧 0、控制台 0 error**；`prefers-reduced-motion` 降级仅代码级验证（自动化工具无法模拟该系统偏好，可用系统「关闭动画效果」人工复核）。
+- **背景动画（2026-10-11）**：`frontend/src/components/AuthBackground.vue` —— **只保留「漂浮几何」一种方案**（＋ ○ □ 共 14 个小元素，22–35s 缓慢上下浮动 + 轻微旋转；符号取自考试页的题号方块 / 答题卡）。位置贴左右两侧、避开中央内容列；≤768px 仅保留最外侧 6 个并再降不透明度（`is-mobile-hidden`）。预览见 `frontend/public/login-styles-preview.html` 的「背景动画」区块。（早期实现过的「流动光晕 aurora」与「点阵视差 grid」两套方案已按用户要求删除，代码内无残留。）
+  性能与降级：只动画 `transform`（合成层）+ `contain: strict` + `pointer-events: none` + `aria-hidden`；`prefers-reduced-motion` 或 CPU ≤ 2 核 / 内存 ≤ 2GB → 全部静止；标签页切后台 → `animation-play-state: paused`。实测（Chromium）：**60.3 FPS、最长帧 17ms、掉帧 0、控制台 0 error**；`prefers-reduced-motion` 降级为代码级验证（自动化工具无法模拟系统偏好，可用系统「关闭动画效果」人工复核）。
 
 ## 6. 还需做（待办/阻塞项）
 

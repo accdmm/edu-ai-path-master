@@ -218,8 +218,8 @@
   .m-now .links a { color: #4fc3f7; }
   .m-now .note { margin-top: 14px; text-align: center; color: #64748b; font-size: 11.5px; }
 
-  /* ================= 背景动画方案（3 选 1） ================= */
-  .anim-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  /* ================= 背景动画（已采用：漂浮几何） ================= */
+  .anim-grid { display: grid; grid-template-columns: minmax(0, 440px); justify-content: center; gap: 16px; }
   .anim-card { margin: 0; background: #fff; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
   .anim-stage { position: relative; height: 320px; overflow: hidden; background: #fff; contain: strict; }
   .anim-caption { padding: 12px 14px 14px; border-top: 1px solid var(--line); }
@@ -239,20 +239,7 @@
   .mini-btn { height: 34px; border-radius: 8px; background: #409eff; color: #fff;
     display: grid; place-items: center; font-size: 12.5px; letter-spacing: .08em; }
 
-  /* A · 流动光晕（预览用 % 尺寸，真实页面用 vmax） */
-  .anim-stage .blob { position: absolute; display: block; border-radius: 50%;
-    background: radial-gradient(closest-side, rgba(64,158,255,.22), rgba(64,158,255,0) 72%);
-    will-change: transform; animation: pv-drift 26s ease-in-out infinite alternate; }
-  .anim-stage .blob.b1 { top: -28%; left: -22%; width: 92%; height: 92%; }
-  .anim-stage .blob.b2 { right: -26%; bottom: -36%; width: 96%; height: 96%;
-    background: radial-gradient(closest-side, rgba(121,187,255,.26), rgba(121,187,255,0) 72%);
-    animation-duration: 34s; animation-delay: -8s; }
-  .anim-stage .blob.b3 { top: 28%; left: 52%; width: 66%; height: 66%;
-    background: radial-gradient(closest-side, rgba(64,158,255,.14), rgba(64,158,255,0) 72%);
-    animation-duration: 22s; animation-delay: -12s; }
-  @keyframes pv-drift { from { transform: translate3d(0,0,0) scale(1); } to { transform: translate3d(16%, 14%, 0) scale(1.08); } }
-
-  /* B · 漂浮几何 */
+  /* 漂浮几何（与真实页面 AuthBackground.vue 同一套做法） */
   .anim-stage .shape { position: absolute; display: block; opacity: .7; will-change: transform;
     animation: pv-float 20s ease-in-out infinite alternate; }
   .anim-stage .shape.plus { background:
@@ -261,14 +248,6 @@
   .anim-stage .shape.ring { border: 2px solid #a0cfff; border-radius: 50%; }
   .anim-stage .shape.square { border: 2px solid #a0cfff; border-radius: 4px; }
   @keyframes pv-float { from { transform: translate3d(0,-8px,0) rotate(-6deg); } to { transform: translate3d(0,10px,0) rotate(8deg); } }
-
-  /* C · 点阵呼吸 + 光晕 */
-  .anim-stage .dots { position: absolute; inset: -20px;
-    background-image: radial-gradient(rgba(64,158,255,.24) 1.2px, transparent 1.2px);
-    background-size: 20px 20px; animation: pv-breathe 12s ease-in-out infinite alternate; }
-  .anim-stage .halo { position: absolute; left: 50%; top: 50%; width: 130%; height: 130%; margin: -65% 0 0 -65%;
-    border-radius: 50%; background: radial-gradient(closest-side, rgba(64,158,255,.16), rgba(64,158,255,0) 70%); }
-  @keyframes pv-breathe { from { opacity: .5; } to { opacity: 1; } }
 
   @media (max-width: 1000px) { .anim-grid { grid-template-columns: 1fr; } }
 
@@ -288,7 +267,7 @@
   <div class="topbar-inner">
     <h1>登录页风格参考 · 可视化预览 <small>5 套通用风格 + 1 套本项目推荐 · 配套 PLAN-登录页风格选型.md</small></h1>
     <nav>
-      <a class="rec" href="#anim">背景动画（3 选 1）</a>
+      <a class="rec" href="#anim">背景动画（已采用：漂浮几何）</a>
       <a class="rec" href="#s6">方案 6 · 蓝白卷面（本项目推荐）</a>
       <a href="#s1">1 · 蓝灰专业（B端）</a>
       <a href="#s2">2 · 氛围渐变（C端）</a>
@@ -308,35 +287,14 @@
     <p>· 本页为静态视觉参考，不含真实登录逻辑；所有装饰均为纯 CSS，无任何图片或外部资源依赖。</p>
   </div>
 
-  <!-- ============ 背景动画方案（3 选 1） ============ -->
+  <!-- ============ 背景动画（已采用：漂浮几何） ============ -->
   <section class="scheme" id="anim">
     <div class="scheme-head">
-      <h2><span class="num">背景动画</span> 3 套方案（登录页 · 实时预览） <span class="badge-rec">方案 A 已采用</span></h2>
-      <p class="meta">填充极简单列页的大片留白 · <span class="tag">#不干扰主体</span> <span class="tag">#仅 transform/opacity</span> <span class="tag">#低端自动降级</span> <span class="tag">#响应式</span></p>
+      <h2><span class="num">背景动画</span> 漂浮几何（考卷元素 ＋ ○ □） <span class="badge-rec">已采用</span></h2>
+      <p class="meta">填充极简单列页的大面积留白 · <span class="tag">#不干扰主体</span> <span class="tag">#仅 transform</span> <span class="tag">#低端自动降级</span> <span class="tag">#响应式</span></p>
     </div>
 
     <div class="anim-grid">
-      <figure class="anim-card">
-        <div class="anim-stage">
-          <span class="blob b1"></span><span class="blob b2"></span><span class="blob b3"></span>
-          <div class="mini"><form class="mini-col" onsubmit="return false">
-            <div class="mini-brand"><i></i>智能学习平台</div>
-            <div class="mini-label">用户名</div><div class="mini-input"></div>
-            <div class="mini-label">密码</div><div class="mini-input"></div>
-            <div class="mini-btn">登 录</div>
-          </form></div>
-        </div>
-        <figcaption class="anim-caption">
-          <h3>A · 流动光晕（Aurora） <span class="badge-rec">当前采用</span></h3>
-          <p>灵感：Stripe / Linear 式大面积柔光渐变。3 个大尺度径向渐变光斑以 26–38s 周期缓慢漂移、缩放。</p>
-          <ul>
-            <li>实现：纯 CSS（<code>radial-gradient</code> + <code>transform</code>），0 JS</li>
-            <li>成本：仅 3 个元素、全部合成层动画，未用 <code>blur()</code> 滤镜</li>
-            <li>调性：Element 蓝同色系 + 低对比，只填补空白、不抢焦点</li>
-          </ul>
-        </figcaption>
-      </figure>
-
       <figure class="anim-card">
         <div class="anim-stage">
           <span class="shape plus" style="left:12%;top:16%;width:16px;height:16px;animation-duration:18s"></span>
@@ -353,33 +311,12 @@
           </form></div>
         </div>
         <figcaption class="anim-caption">
-          <h3>B · 漂浮几何（考卷元素 ＋ ○ □）</h3>
-          <p>灵感：Notion / Stripe 式几何点缀。用「＋ ○ □」呼应考试页的题号方块与答题卡，弱化空旷感。</p>
+          <h3>漂浮几何 · 考卷元素 ＋ ○ □</h3>
+          <p>灵感：Notion / Stripe 式几何点缀。用「＋ ○ □」呼应考试页的题号方块与答题卡，在留白处形成轻量节奏感。</p>
           <ul>
-            <li>实现：纯 CSS，逐个 <code>translate3d</code> 浮动 + 轻微旋转</li>
-            <li>成本：6–10 个小元素（≤768px 自动减半）</li>
-            <li>调性：与「考卷」视觉语言同源；位置避开中央内容列</li>
-          </ul>
-        </figcaption>
-      </figure>
-
-      <figure class="anim-card">
-        <div class="anim-stage">
-          <span class="dots"></span><span class="halo"></span>
-          <div class="mini"><form class="mini-col" onsubmit="return false">
-            <div class="mini-brand"><i></i>智能学习平台</div>
-            <div class="mini-label">用户名</div><div class="mini-input"></div>
-            <div class="mini-label">密码</div><div class="mini-input"></div>
-            <div class="mini-btn">登 录</div>
-          </form></div>
-        </div>
-        <figcaption class="anim-caption">
-          <h3>C · 点阵呼吸 + 两层视差</h3>
-          <p>灵感：Vercel / Linear 的点阵底纹 + 鼠标视差。点阵缓慢呼吸，并随光标做深浅两层位移（真实页面生效，本预览为静态展示）。</p>
-          <ul>
-            <li>实现：CSS 变量 + <code>pointermove</code> 节流 ≈30fps，只写 <code>--px/--py</code></li>
-            <li>成本：2 个图层；触屏与低端设备自动关闭视差</li>
-            <li>调性：科技感更强、信息密度感明显，偏「工具/控制台」取向</li>
+            <li>实现：纯 CSS，逐个 <code>translate3d</code> 上下浮动 + 轻微旋转（22–35s 周期）</li>
+            <li>成本：14 个小元素（≤768px 仅保留最外侧 6 个并再降不透明度）</li>
+            <li>调性：与「考卷」视觉语言同源；位置贴左右两侧，避开中央内容列</li>
           </ul>
         </figcaption>
       </figure>
@@ -388,8 +325,8 @@
     <div class="spec" style="margin-top:16px">
       <div><h4>性能保障</h4><p>只动画 <code>transform</code> / <code>opacity</code>（走合成层）；背景层加 <code>contain: strict</code> + <code>pointer-events: none</code> + <code>aria-hidden</code>，不参与无障碍树与事件。</p></div>
       <div><h4>自动降级</h4><p><code>prefers-reduced-motion</code>、CPU ≤ 2 核或内存 ≤ 2GB → 全部动画静止；切到后台标签页 → <code>animation-play-state: paused</code>（省电）。</p></div>
-      <div><h4>响应式</h4><p>≤768px：光晕放慢、几何元素减半、点阵间距调整；均为绝对定位装饰层，不影响布局、无横向滚动。</p></div>
-      <div><h4>切换方式</h4><p>真实页面只需改 <code>&lt;AuthBackground variant="aurora | shapes | grid" /&gt;</code> 一个词；组件位于 <code>frontend/src/components/AuthBackground.vue</code>。</p></div>
+      <div><h4>响应式</h4><p>≤768px：仅保留贴最外侧的 6 个元素并再降不透明度；装饰层绝对定位，不影响布局、无横向滚动。</p></div>
+      <div><h4>主题呼应</h4><p>「＋ ○ □」取自考试页的题号方块与答题卡符号，保持「蓝白考卷」语言；组件位于 <code>frontend/src/components/AuthBackground.vue</code>。</p></div>
     </div>
   </section>
 
