@@ -5,7 +5,7 @@
 ## 1. 项目位置与结构
 
 - 项目根目录：`C:\Users\34147\Downloads\edu-ai-path-master`
-- 非 git 仓库，已删除旧嵌套源码目录（`edu-ai-path-master/edu-ai-path-master`），当前结构干净：
+- 已纳入 git 版本管理（分支 main，有 origin 远端；本地已多次提交），已删除旧嵌套源码目录（`edu-ai-path-master/edu-ai-path-master`），当前结构干净：
 
 ```
 edu-ai-path-master/
@@ -183,6 +183,15 @@ pinecone:
 - **ExamRanking.vue**（原深藏青金）：改浅色白卡，保留金银铜 CSS 奖牌徽章、榜首浅金横幅（NO.1 徽章 + 流光动画）、衬线大分数 + 得分率细条、蓝色统计卡；清除全部 emoji（含 script 内 statsTitle computed 里的）。
 - **ExamResult.vue**（原紫渐变 #667eea→#764ba2 六处）：全部替换 Element 蓝渐变，页面底浅蓝灰，loading 文字改深色。
 - 验证：vite build 通过；浏览器实测四页截图（开始考试→答题→排行榜→结果页）确认无深色/emoji 残留。
+
+### 5.4 企业财务报表模块（2026-10-11，已浏览器实测）
+
+- **能力**：后台管理新增「财务管理 → 企业财务报表」（`/admin/finance`）：年度概览卡（收入/支出/净利润/利润率）、月度收支趋势图（柱+线）、分类构成饼图（收入/支出可切换）、收支明细（类型/分类/日期范围/关键词筛选 + 分页）、月度报表（12 月 + 全年合计）、年度报表（按年聚合 + 合计）、Excel 导出（按当前筛选，含合计行）。
+- **数据源**：新建台账表 `finance_record`（`scripts/init.sql` 末尾已追加 DDL + 215 条演示种子，2025-11~2026-10，含 6 个亏损月；流水号 IN/EX+日期+序号）。**未联动支付订单**（如需真实入账，可在 `PayOrderServiceImpl.settle` 成功后写入一条台账收入）。
+- **后端**：`FinanceRecord` / `FinanceRecordMapper` / `FinanceReportVo`（概览/月度/年度/分类嵌套 VO，仿 LearningReportVo 模式）/ `FinanceQueryVo` / `FinanceService(Impl)` / `FinanceController`（`/api/admin/finance/overview|monthly|yearly|category-stats|categories|records|export`）。聚合走「条件查询 + 代码层聚合」，导出用 POI XSSFWorkbook（`#,##0.00` 金额格式 + 底部合计区）。
+- **前端**：`views/FinanceReport.vue`（Element 浅色风格 + echarts）、`api/finance.js`、路由 `/admin/finance`、`AdminLayout.vue` 新增「财务管理」菜单分组；同时把该文件内 `el-submenu` 统一改为官方组件名 `el-sub-menu`（消除控制台 Vue warn）。
+- **验证**：21 项接口/DB 对账/导出断言全过（2026 年度：收入 ¥334,213.11 / 支出 ¥206,031.45 / 净利润 ¥128,181.66 / 利润率 38%）；浏览器实测统计卡、双图表、三 Tab、筛选（收入筛选 215→145 条）、菜单跳转均正常，控制台无报错。
+- **环境备注（2026-10-11）**：启动方式——MySQL 常驻；Redis `D:\Redis\Redis-x64-5.0.14.1\redis-server.exe`；MongoDB `D:\mongodb\bin\mongod.exe --dbpath D:\mongodb-data --port 27017 --bind_ip 127.0.0.1`；后端 `mvn spring-boot:run`（`DASHSCOPE_API_KEY` 已存于用户环境变量）；前端 `npm run dev`。`ALIPAY_PRIVATE_KEY` 环境变量已丢失（旧 launch 脚本被清理），支付类接口需要时需重新注入。注意 8080 可能被 smart-elderly-companion 后端占用，启动前先确认端口。
 
 ## 6. 还需做（待办/阻塞项）
 

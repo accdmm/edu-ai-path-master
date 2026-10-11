@@ -120,6 +120,12 @@ const routes = [
         name: 'PaperCreate',
         component: () => import('../views/PaperCreate.vue'),
         meta: { title: '创建新试卷' }
+      },
+      {
+        path: 'finance',
+        name: 'FinanceReport',
+        component: () => import('../views/FinanceReport.vue'),
+        meta: { title: '企业财务报表' }
       }
     ]
   },

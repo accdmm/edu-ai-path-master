@@ -10,7 +10,7 @@
         router
       >
         <!-- 试题管理分组 -->
-        <el-submenu index="question">
+        <el-sub-menu index="question">
           <template #title>试题管理</template>
           <el-menu-item index="/admin/question-manage">
             <el-icon><Document /></el-icon>
@@ -20,9 +20,9 @@
             <el-icon><Folder /></el-icon>
             <span>类别管理</span>
           </el-menu-item>
-        </el-submenu>
+        </el-sub-menu>
         <!-- 考试管理分组 -->
-        <el-submenu index="exam">
+        <el-sub-menu index="exam">
           <template #title>考试管理</template>
           <el-menu-item index="/admin/paper-manage">
             <el-icon><Files /></el-icon>
@@ -32,9 +32,9 @@
             <el-icon><DataAnalysis /></el-icon>
             <span>成绩管理</span>
           </el-menu-item>
-        </el-submenu>
+        </el-sub-menu>
         <!-- 系统管理分组 -->
-        <el-submenu index="system">
+        <el-sub-menu index="system">
           <template #title>系统管理</template>
           <el-menu-item index="/admin/banner-manage">
             <el-icon><Picture /></el-icon>
@@ -44,9 +44,9 @@
             <el-icon><Bell /></el-icon>
             <span>公告管理</span>
           </el-menu-item>
-        </el-submenu>
+        </el-sub-menu>
         <!-- 视频管理分组 -->
-        <el-submenu index="video">
+        <el-sub-menu index="video">
           <template #title>视频管理</template>
           <el-menu-item index="/admin/video-manage">
             <el-icon><VideoPlay /></el-icon>
@@ -56,7 +56,15 @@
             <el-icon><Collection /></el-icon>
             <span>视频分类</span>
           </el-menu-item>
-        </el-submenu>
+        </el-sub-menu>
+        <!-- 财务管理分组 -->
+        <el-sub-menu index="finance">
+          <template #title>财务管理</template>
+          <el-menu-item index="/admin/finance">
+            <el-icon><Money /></el-icon>
+            <span>企业财务报表</span>
+          </el-menu-item>
+        </el-sub-menu>
       </el-menu>
     </div>
 
@@ -70,9 +78,9 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { 
-  Document, Folder, Files, DataAnalysis, 
-  Picture, Bell, VideoPlay, Collection 
+import {
+  Document, Folder, Files, DataAnalysis,
+  Picture, Bell, VideoPlay, Collection, Money
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
