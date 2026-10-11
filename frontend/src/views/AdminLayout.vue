@@ -66,6 +66,13 @@
           </el-menu-item>
         </el-sub-menu>
       </el-menu>
+      <!-- 返回前台首页（管理端任意页面可用） -->
+      <div class="sidebar-footer">
+        <el-button link type="primary" class="back-home-btn" @click="goHome">
+          <el-icon><HomeFilled /></el-icon>
+          <span>返回前台首页</span>
+        </el-button>
+      </div>
     </div>
 
     <!-- 右侧内容区 -->
@@ -80,11 +87,16 @@ import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   Document, Folder, Files, DataAnalysis,
-  Picture, Bell, VideoPlay, Collection, Money
+  Picture, Bell, VideoPlay, Collection, Money, HomeFilled
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
+
+// 返回前台首页
+const goHome = () => {
+  router.push('/home')
+}
 
 const activeMenu = computed(() => {
   return route.path
@@ -106,6 +118,8 @@ const handleMenuSelect = (index) => {
   width: 250px;
   background: white;
   box-shadow: 2px 0 8px rgba(0,0,0,0.1);
+  display: flex;
+  flex-direction: column;
 }
 
 .sidebar-title {
@@ -117,6 +131,17 @@ const handleMenuSelect = (index) => {
 
 .sidebar-menu {
   border: none;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.sidebar-footer {
+  padding: 14px 20px;
+  border-top: 1px solid #eee;
+}
+
+.back-home-btn {
+  font-size: 14px;
 }
 
 .main-content {
