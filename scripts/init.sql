@@ -693,6 +693,29 @@ CREATE TABLE learning_path_node (
 ) ENGINE = InnoDB COMMENT = 'AI 学习路径节点';
 
 -- ----------------------------------------
+-- 错题本（判卷结算后自动采集答错/部分正确的题目，支撑巩固练习）
+-- ----------------------------------------
+DROP TABLE IF EXISTS wrong_question;
+CREATE TABLE wrong_question (
+  id                   BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键',
+  user_id              BIGINT       NOT NULL COMMENT '归属用户ID',
+  question_id          BIGINT       NOT NULL COMMENT '题目ID',
+  category_id          BIGINT       DEFAULT NULL COMMENT '知识点分类ID（冗余自 questions.category_id）',
+  wrong_count          INT          NOT NULL DEFAULT 1 COMMENT '累计答错次数',
+  correct_streak       INT          NOT NULL DEFAULT 0 COMMENT '连续答对次数（达到2次判定已掌握）',
+  status               VARCHAR(20)  NOT NULL DEFAULT 'UNMASTERED' COMMENT '掌握状态：UNMASTERED未掌握/LEARNING半掌握/MASTERED已掌握',
+  last_wrong_time      DATETIME     DEFAULT NULL COMMENT '最近一次答错时间',
+  last_exam_record_id  BIGINT       DEFAULT NULL COMMENT '最近一次采集来源的考试记录ID（幂等去重）',
+  create_time          DATETIME     DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  update_time          DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '修改时间',
+  is_deleted           TINYINT      DEFAULT 0 COMMENT '逻辑删除',
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_user_question (user_id, question_id),
+  KEY idx_user_status (user_id, status),
+  KEY idx_category (category_id)
+) ENGINE = InnoDB COMMENT = '错题本';
+
+-- ----------------------------------------
 -- 财务收支台账（后台管理 - 企业财务报表数据源）
 -- ----------------------------------------
 DROP TABLE IF EXISTS finance_record;

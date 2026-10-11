@@ -14,6 +14,7 @@ import com.atguigu.exam.service.ExamService;
 import com.atguigu.exam.service.KimiAiService;
 import com.atguigu.exam.service.PaperService;
 import com.atguigu.exam.service.UserPaperService;
+import com.atguigu.exam.service.WrongQuestionService;
 import com.atguigu.exam.utils.ExamTimePolicy;
 import com.atguigu.exam.utils.UserContextUtil;
 import com.atguigu.exam.vo.ExamRankingVO;
@@ -93,6 +94,9 @@ public class ExamServiceImpl extends ServiceImpl<ExamRecordMapper, ExamRecord> i
     @Autowired
     private CreditRecordMapper creditRecordMapper;
 
+    @Autowired
+    private WrongQuestionService wrongQuestionService;
+
     //开始考试
     @Override
     public ExamRecord startExam(StartExamVo startExamVo) {
@@ -146,6 +150,17 @@ public class ExamServiceImpl extends ServiceImpl<ExamRecordMapper, ExamRecord> i
 
     @Override
     public ExamRecord customGetExamRecordById(Integer id) {
+        return loadExamRecordDetail(id, true);
+    }
+
+    /**
+     * 加载考试记录详情（试卷 + 按卷面顺序排列的答题记录）
+     *
+     * @param assertAccess 是否做本人/管理员鉴权。true 用于面向外部 HTTP 请求的查询；
+     *                     false 用于系统内部调用（如判卷 worker 线程无 HTTP 请求上下文，
+     *                     访问请求域对象会抛 "No thread-bound request found"）
+     */
+    private ExamRecord loadExamRecordDetail(Integer id, boolean assertAccess) {
         //宏观：获取考试记录，考试记录对应的试卷对象，获取考试记录对应的答题记录集合
         //注意： 答题记录和顺序和考试记录的顺序相同！
         //1. 获取考试记录详情
@@ -153,8 +168,10 @@ public class ExamServiceImpl extends ServiceImpl<ExamRecordMapper, ExamRecord> i
         if (examRecord == null) {
             throw new RuntimeException("开始考试的记录已经被删除！");
         }
-        // 业务层鉴权：仅本人或管理员可查看
-        assertRecordAccessible(examRecord);
+        // 业务层鉴权：仅本人或管理员可查看（仅外部请求调用时校验）
+        if (assertAccess) {
+            assertRecordAccessible(examRecord);
+        }
         //2. 获取考试记录对应试卷对象详情 【试卷 题目 选项 和 答案】
         Paper paper = paperService.customPaperDetailById(examRecord.getExamId().longValue());
         if (paper == null) {
@@ -260,10 +277,10 @@ public class ExamServiceImpl extends ServiceImpl<ExamRecordMapper, ExamRecord> i
         //0. 幂等：已批阅的记录直接返回现有结果，避免重复判卷/重复计费
         ExamRecord existed = getById(examRecordId);
         if (existed != null && "已批阅".equals(existed.getStatus())) {
-            return customGetExamRecordById(examRecordId);
+            return loadExamRecordDetail(examRecordId, false);
         }
         //1.获取考试记录和相关的信息（试卷和答题记录）
-        ExamRecord examRecord = customGetExamRecordById(examRecordId);
+        ExamRecord examRecord = loadExamRecordDetail(examRecordId, false);
         Paper paper = examRecord.getPaper();
         if (paper == null){
             examRecord.setStatus("已批阅");
@@ -357,6 +374,13 @@ public class ExamServiceImpl extends ServiceImpl<ExamRecordMapper, ExamRecord> i
                 .count();
         if (failedTextCount > 0) {
             throw new RuntimeException(failedTextCount + " 道简答题 AI 判分失败，保持判卷中等待队列重试（客观题得分已保存）");
+        }
+
+        //错题本采集：本次结算的答错(0)/部分正确(2)题目自动入库（幂等，采集失败不影响判卷结算）
+        try {
+            wrongQuestionService.collectFromExam(examRecord.getUserId(), examRecordId, answerRecords, questionMap);
+        } catch (Exception e) {
+            log.error("错题本采集失败 examRecordId={} 原因: {}", examRecordId, e.getMessage());
         }
 
         //进行总分数与总正确题目数量统计
