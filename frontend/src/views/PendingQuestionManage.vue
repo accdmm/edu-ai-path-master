@@ -78,7 +78,7 @@
         </template>
       </el-table-column>
       <el-table-column prop="created_time" label="上传时间" width="160" />
-      <el-table-column label="操作" width="240" fixed="right">
+      <el-table-column label="操作" width="300" fixed="right" :cell-style="{ whiteSpace: 'nowrap' }">
         <template #default="scope">
           <el-button size="small" @click="viewDetail(scope.row)" icon="View">详情</el-button>
           <el-button size="small" type="success" v-if="scope.row.status === 0" @click="review(scope.row, 1)" icon="Check">采纳</el-button>

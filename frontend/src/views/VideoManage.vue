@@ -60,7 +60,7 @@
         <el-table-column prop="viewCount" label="观看次数" width="100" />
         <el-table-column prop="likeCount" label="点赞数" width="80" />
         <el-table-column prop="createdAt" label="创建时间" width="180" />
-        <el-table-column label="操作" width="360" fixed="right">
+        <el-table-column label="操作" width="400" fixed="right" :cell-style="{ whiteSpace: 'nowrap' }">
           <template #default="scope">
             <el-button size="small" @click="previewVideo(scope.row)" icon="View">预览</el-button>
             <el-button size="small" type="primary" @click="editVideo(scope.row)" icon="Edit">编辑</el-button>

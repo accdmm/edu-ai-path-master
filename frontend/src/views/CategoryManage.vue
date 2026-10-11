@@ -30,7 +30,7 @@
         <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip></el-table-column>
         <el-table-column prop="createTime" label="创建时间" width="170" />
         
-        <el-table-column label="操作" width="300" fixed="right">
+        <el-table-column label="操作" width="360" fixed="right" :cell-style="{ whiteSpace: 'nowrap' }">
           <template #default="scope">
             <el-button size="small" @click="viewCategory(scope.row)" icon="View">查看</el-button>
             <el-button size="small" type="primary" @click="editCategory(scope.row)" icon="Edit">编辑</el-button>

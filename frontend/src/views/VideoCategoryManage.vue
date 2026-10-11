@@ -28,7 +28,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="createdAt" label="创建时间" width="180" />
-        <el-table-column label="操作" width="300" fixed="right">
+        <el-table-column label="操作" width="360" fixed="right" :cell-style="{ whiteSpace: 'nowrap' }">
           <template #default="scope">
             <el-button size="small" type="success" @click="addChildCategory(scope.row)" icon="Plus" v-if="!scope.row.parentId || scope.row.level < 3">添加子分类</el-button>
             <el-button size="small" type="primary" @click="editCategory(scope.row)" icon="Edit">编辑</el-button>
