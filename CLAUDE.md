@@ -201,6 +201,13 @@ pinecone:
 - **管理员会话复用（已修复）**：此前从管理端返回首页后，再点「管理员后台」会无条件弹出登录框（`showAdminLogin` 不识别已有会话），造成"每次都要重新登录"的错觉——token 实际一直保存在 localStorage 中，并未丢失。修复：`Home.vue` 增加 `isAdmin` computed（token + role=ADMIN），命中时按钮变为「返回管理后台」并直接 `router.push('/admin')`；未登录/非管理员仍弹登录框。浏览器已验证完整流程（登录→管理端→返回前台→直接再进后台无登录框→退出登录后恢复为需登录）。
 - **留待人工确认（非本次改动引入）**：级联选择器中用鼠标点击 radio 圆点在自动化测试里未生效（键盘 Enter 可正常选中）。代码比对：启用分类在改动前后传给 Element Plus 的 `disabled` 均为 falsy（改前 undefined、改后 false），EP 内部状态完全等价，判定与本次修改无关；建议人工浏览器点选确认，如确有问题再单独排查。
 
+### 5.6 登录/注册页改版（极简单列，2026-10-11，已浏览器实测）
+
+- **选型**：从 `PLAN-登录页风格选型.md` 的 6 套方案中选定**方案 3「极简无干扰 · 单列聚焦」**（可视化预览：`frontend/public/login-styles-preview.html`）。按项目设计系统适配：单一强调色用 Element 蓝 `#409eff`（与全站一致），输入框保留可见边框（`#d1d5db`），零装饰。
+- **改动**：`Login.vue` / `Register.vue` 重写为「白底 + 单列 360px + 顶部 logo/站名 + 可见 label」；删除深色玻璃拟态（`#1a1a2e` 渐变 / 毛玻璃 / `#667eea→#764ba2` 紫渐变按钮）与 🎓 emoji；按钮改原生 `<button>`（44px/圆角 8）；底部保留注册/返回首页入口并新增「按 Enter 快速提交」提示。
+- **可访问性（一并修复）**：原生 `<label>` 包裹 `el-input`（点击标签即聚焦，已实测）；`autocomplete`=username / current-password / new-password；行内错误 `role="alert" aria-live="polite"`（空提交「请输入用户名」、错误密码「用户名或密码错误」、注册「两次输入的密码不一致」均已实测）；改用原生 `<form>` + `type=submit`，**注册页此前不支持回车提交的问题一并修复**；`focus-visible` 2px 焦点环 + 输入框聚焦外发光。
+- **验证**：`npm run build` 通过；两页浏览器实测全部断言通过，控制台 0 error。
+
 ## 6. 还需做（待办/阻塞项）
 
 ### 阻塞项（等待用户提供）

@@ -1,54 +1,50 @@
 <template>
-  <div class="login-container">
-    <div class="login-box">
-      <h1 class="title">🎓 智能学习平台</h1>
-      <p class="subtitle">用户登录</p>
+  <div class="login-page">
+    <main class="auth-col">
+      <header class="brand">
+        <img src="@/assets/logo.svg" alt="" class="brand-mark" />
+        <h1 class="brand-name">智能学习平台</h1>
+      </header>
 
-      <el-form
-        ref="loginFormRef"
-        :model="loginForm"
-        :rules="rules"
-        class="login-form"
-      >
-        <el-form-item prop="username">
+      <form class="auth-form" @submit.prevent="handleLogin">
+        <label class="field">
+          <span class="field-label">用户名</span>
           <el-input
             v-model="loginForm.username"
-            placeholder="请输入用户名"
-            prefix-icon="User"
             size="large"
+            placeholder="请输入用户名"
+            autocomplete="username"
+            :disabled="loading"
           />
-        </el-form-item>
+        </label>
 
-        <el-form-item prop="password">
+        <label class="field">
+          <span class="field-label">密码</span>
           <el-input
             v-model="loginForm.password"
             type="password"
+            size="large"
             placeholder="请输入密码"
-            prefix-icon="Lock"
+            autocomplete="current-password"
             show-password
-            size="large"
-            @keyup.enter="handleLogin"
+            :disabled="loading"
           />
-        </el-form-item>
+        </label>
 
-        <el-form-item>
-          <el-button
-            type="primary"
-            :loading="loading"
-            size="large"
-            class="login-btn"
-            @click="handleLogin"
-          >
-            登录
-          </el-button>
-        </el-form-item>
+        <p v-if="errorMsg" class="form-error" role="alert" aria-live="polite">{{ errorMsg }}</p>
 
-        <div class="links">
+        <button class="submit" type="submit" :disabled="loading">
+          {{ loading ? '登录中…' : '登 录' }}
+        </button>
+
+        <p class="hint">按 <kbd>Enter</kbd> 快速提交</p>
+
+        <nav class="links">
           <router-link to="/register">没有账号？立即注册</router-link>
           <router-link to="/home">返回首页</router-link>
-        </div>
-      </el-form>
-    </div>
+        </nav>
+      </form>
+    </main>
   </div>
 </template>
 
@@ -61,138 +57,176 @@ import { login } from '@/api/user'
 
 const router = useRouter()
 const userStore = useUserStore()
-const loginFormRef = ref(null)
 const loading = ref(false)
+const errorMsg = ref('')
 
 const loginForm = reactive({
   username: '',
   password: ''
 })
 
-const rules = {
-  username: [
-    { required: true, message: '请输入用户名', trigger: 'blur' }
-  ],
-  password: [
-    { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 6, message: '密码长度不能小于 6 位', trigger: 'blur' }
-  ]
+const validate = () => {
+  if (!loginForm.username.trim()) return '请输入用户名'
+  if (!loginForm.password) return '请输入密码'
+  if (loginForm.password.length < 6) return '密码长度不能小于 6 位'
+  return ''
 }
 
 const handleLogin = async () => {
-  if (!loginFormRef.value) return
+  errorMsg.value = validate()
+  if (errorMsg.value) return
 
-  await loginFormRef.value.validate(async (valid) => {
-    if (valid) {
-      loading.value = true
-      try {
-        const res = await login(loginForm)
-        userStore.setToken(res.data.token)
-        userStore.setUserInfo({
-          userId: res.data.userId,
-          username: res.data.username,
-          realName: res.data.realName,
-          role: res.data.role
-        })
-        ElMessage.success('登录成功')
-        const redirect = router.currentRoute.value.query.redirect
-        router.push(redirect || '/home')
-      } catch (error) {
-        console.error('登录失败:', error)
-      } finally {
-        loading.value = false
-      }
-    }
-  })
+  loading.value = true
+  try {
+    const res = await login(loginForm)
+    userStore.setToken(res.data.token)
+    userStore.setUserInfo({
+      userId: res.data.userId,
+      username: res.data.username,
+      realName: res.data.realName,
+      role: res.data.role
+    })
+    errorMsg.value = ''
+    ElMessage.success('登录成功')
+    const redirect = router.currentRoute.value.query.redirect
+    router.push(redirect || '/home')
+  } catch (error) {
+    // 行内错误（role=alert 可被读屏播报）；弹窗提示由 axios 拦截器统一负责
+    errorMsg.value = (error && error.message) ? error.message : '登录失败，请稍后重试'
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 
 <style scoped lang="scss">
-.login-container {
-  width: 100%;
-  height: 100vh;
+/* 极简单列：零装饰、白底、可见边框、单一强调色（Element 蓝），聚焦效率与可访问性 */
+.login-page {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  background: #fff;
+  padding: 24px;
+}
+
+.auth-col {
+  width: min(360px, 100%);
+}
+
+.brand {
   display: flex;
-  justify-content: center;
   align-items: center;
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  gap: 8px;
+  margin-bottom: 28px;
 }
 
-.login-box {
-  width: 420px;
-  padding: 40px;
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(10px);
-  border-radius: 20px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+.brand-mark {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
 }
 
-.title {
-  text-align: center;
-  font-size: 28px;
-  color: #4fc3f7;
-  margin-bottom: 10px;
+.brand-name {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #303133;
+  letter-spacing: .01em;
 }
 
-.subtitle {
-  text-align: center;
-  font-size: 16px;
-  color: #999;
-  margin-bottom: 30px;
+.field {
+  display: block;
+  margin-bottom: 14px;
 }
 
-.login-form {
-  .el-form-item {
-    margin-bottom: 24px;
-  }
-
-  .el-input {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
-
-    :deep(.el-input__wrapper) {
-      background: transparent;
-      box-shadow: none;
-
-      .el-input__inner {
-        color: #fff;
-
-        &::placeholder {
-          color: #666;
-        }
-      }
-    }
-  }
+.field-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  color: #606266;
 }
 
-.login-btn {
+.form-error {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: #f56c6c;
+}
+
+.submit {
   width: 100%;
   height: 44px;
-  font-size: 16px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border: none;
+  border: 0;
   border-radius: 8px;
-  margin-top: 12px;
+  background: #409eff;
+  color: #fff;
+  font-size: 15px;
+  letter-spacing: .08em;
+  cursor: pointer;
+  transition: background .2s ease;
+}
 
-  &:hover {
-    opacity: 0.9;
-  }
+.submit:hover:not(:disabled) {
+  background: #66b1ff;
+}
+
+.submit:disabled {
+  background: #a0cfff;
+  cursor: not-allowed;
+}
+
+.submit:focus-visible {
+  outline: 2px solid #409eff;
+  outline-offset: 2px;
+}
+
+.hint {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: #909399;
+}
+
+.hint kbd {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11px;
+  color: #606266;
+  background: #f5f7fa;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+  padding: 1px 5px;
 }
 
 .links {
   display: flex;
   justify-content: space-between;
-  margin-top: 20px;
+  margin-top: 22px;
+  font-size: 13px;
+}
 
-  a {
-    color: #4fc3f7;
-    text-decoration: none;
-    font-size: 14px;
+.links a {
+  color: #409eff;
+  text-decoration: none;
+}
 
-    &:hover {
-      text-decoration: underline;
-    }
-  }
+.links a:hover {
+  text-decoration: underline;
+}
+
+/* Element Plus 输入框：可见边框优先（覆盖默认的浅色阴影边框） */
+:deep(.el-input__wrapper) {
+  height: 44px;
+  border-radius: 8px;
+  box-shadow: 0 0 0 1px #d1d5db inset;
+}
+
+:deep(.el-input__wrapper:hover) {
+  box-shadow: 0 0 0 1px #c0c4cc inset;
+}
+
+:deep(.el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 1px #409eff inset, 0 0 0 3px rgba(64, 158, 255, .18);
+}
+
+:deep(.el-input__inner) {
+  font-size: 14px;
 }
 </style>
