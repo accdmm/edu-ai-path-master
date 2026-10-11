@@ -25,7 +25,8 @@
           </el-dropdown>
         </template>
         <el-button v-else @click="goToLogin" icon="User">登录</el-button>
-        <el-button @click="showAdminLogin" icon="Edit">管理员后台</el-button>
+        <el-button v-if="isAdmin" type="primary" @click="goAdminConsole" icon="Setting">返回管理后台</el-button>
+        <el-button v-else @click="showAdminLogin" icon="Edit">管理员后台</el-button>
       </div>
     </div>
 
@@ -232,11 +233,11 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
-  Search, Document, Edit, Trophy, Bell, DataAnalysis, View, Check, User, Files, TrendCharts, VideoPlay, ChatDotRound, Microphone, Cpu, Guide
+  Search, Document, Edit, Trophy, Bell, DataAnalysis, View, Check, User, Files, TrendCharts, VideoPlay, ChatDotRound, Microphone, Cpu, Guide, Setting
 } from '@element-plus/icons-vue'
 import request from '../utils/request'
 import { useUserStore } from '@/stores/user'
@@ -244,6 +245,9 @@ import { getActiveCredit } from '@/api/user'
 
 const router = useRouter()
 const userStore = useUserStore()
+
+// 是否已是管理员会话：已登录且角色为 ADMIN。命中时复用会话直接进入管理后台，避免重复登录
+const isAdmin = computed(() => !!userStore.token && (userStore.userInfo?.role || '').toUpperCase() === 'ADMIN')
 
 const activeCredits = ref(0)
 
@@ -565,6 +569,11 @@ const handleUserCommand = (command) => {
     ElMessage.success('已退出登录')
     router.push('/home')
   }
+}
+
+// 已登录管理员直接进入管理后台（复用现有会话，无需重新输入账号密码）
+const goAdminConsole = () => {
+  router.push('/admin')
 }
 
 // 管理员登录弹窗
