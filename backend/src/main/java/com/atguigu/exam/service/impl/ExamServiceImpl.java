@@ -376,11 +376,11 @@ public class ExamServiceImpl extends ServiceImpl<ExamRecordMapper, ExamRecord> i
             throw new RuntimeException(failedTextCount + " 道简答题 AI 判分失败，保持判卷中等待队列重试（客观题得分已保存）");
         }
 
-        //错题本采集：本次结算的答错(0)/部分正确(2)题目自动入库（幂等，采集失败不影响判卷结算）
+        //错题本同步：答错/部分正确自动收录、答对累计连续次数（达阈值自动掌握），幂等；失败不影响判卷结算
         try {
-            wrongQuestionService.collectFromExam(examRecord.getUserId(), examRecordId, answerRecords, questionMap);
+            wrongQuestionService.syncFromGrading(examRecord.getUserId(), examRecordId, answerRecords, questionMap);
         } catch (Exception e) {
-            log.error("错题本采集失败 examRecordId={} 原因: {}", examRecordId, e.getMessage());
+            log.error("错题本同步失败 examRecordId={} 原因: {}", examRecordId, e.getMessage());
         }
 
         //进行总分数与总正确题目数量统计

@@ -12,13 +12,16 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 错题本控制器 - 错题列表查询与知识点维度统计
+ * 错题本控制器 - 错题列表查询、知识点维度统计、掌握状态管理与移除
  * 需登录（SecurityConfig 已收紧 /api/wrong-questions/**）
  */
 @Slf4j
@@ -55,5 +58,25 @@ public class WrongQuestionController {
             return Result.error(401, "未登录");
         }
         return Result.success(wrongQuestionService.stats(userContextUtil.getUserId()));
+    }
+
+    @PostMapping("/{id}/toggle-master")
+    @Operation(summary = "切换掌握状态", description = "未掌握/半掌握 → 已掌握（可撤销）；已掌握 → 回落到未掌握。之后再次答错由判卷状态机自动回退")
+    public Result<Void> toggleMaster(@Parameter(description = "错题记录ID") @PathVariable Long id) {
+        if (!userContextUtil.isAuthenticated()) {
+            return Result.error(401, "未登录");
+        }
+        wrongQuestionService.toggleMaster(userContextUtil.getUserId(), id);
+        return Result.success(null);
+    }
+
+    @DeleteMapping("/{id}")
+    @Operation(summary = "移出错题本", description = "删除指定错题记录；该题之后若再次答错会被重新收录")
+    public Result<Void> remove(@Parameter(description = "错题记录ID") @PathVariable Long id) {
+        if (!userContextUtil.isAuthenticated()) {
+            return Result.error(401, "未登录");
+        }
+        wrongQuestionService.removeWrongQuestion(userContextUtil.getUserId(), id);
+        return Result.success(null);
     }
 }

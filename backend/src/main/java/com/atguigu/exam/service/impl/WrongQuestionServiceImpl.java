@@ -63,35 +63,51 @@ public class WrongQuestionServiceImpl extends ServiceImpl<WrongQuestionMapper, W
     private AnswerRecordService answerRecordService;
 
     @Override
-    public void collectFromExam(Long userId, Integer examRecordId,
+    public void syncFromGrading(Long userId, Integer examRecordId,
                                 List<AnswerRecord> answerRecords, Map<Long, Question> questionMap) {
         if (userId == null || examRecordId == null || ObjectUtils.isEmpty(answerRecords) || questionMap == null) {
             return;
         }
         List<WrongQuestion> toInsert = new ArrayList<>();
         List<WrongQuestion> toUpdate = new ArrayList<>();
+        int masteredCount = 0;
         for (AnswerRecord ar : answerRecords) {
-            if (ar.getQuestionId() == null) {
-                continue;
-            }
-            Integer isCorrect = ar.getIsCorrect();
-            // 仅采集答错(0)与部分正确(2)
-            if (isCorrect == null || isCorrect == 1) {
+            if (ar.getQuestionId() == null || ar.getIsCorrect() == null) {
                 continue;
             }
             long questionId = ar.getQuestionId().longValue();
             WrongQuestion existing = getOne(new LambdaQueryWrapper<WrongQuestion>()
                     .eq(WrongQuestion::getUserId, userId)
                     .eq(WrongQuestion::getQuestionId, questionId), false);
-            // 幂等：本场考试已采集过该题则跳过
+            // 幂等：本场考试已同步过该题则跳过
             if (existing != null && existing.getLastExamRecordId() != null
                     && existing.getLastExamRecordId() == examRecordId.longValue()) {
                 continue;
             }
+            int isCorrect = ar.getIsCorrect();
+            if (isCorrect == 1) {
+                // 答对：仅对已收录的错题累计"连续答对"回血，未收录的答对题不入库
+                if (existing == null) {
+                    continue;
+                }
+                int streak = (existing.getCorrectStreak() == null ? 0 : existing.getCorrectStreak()) + 1;
+                existing.setCorrectStreak(streak);
+                // 达到阈值自动掌握；已达 MASTERED 的题保持掌握状态
+                if (streak >= MASTER_STREAK && !"MASTERED".equals(existing.getStatus())) {
+                    existing.setStatus("MASTERED");
+                    masteredCount++;
+                }
+                existing.setLastExamRecordId(examRecordId.longValue());
+                toUpdate.add(existing);
+                continue;
+            }
+            // 答错(0)/部分正确(2)：状态回落（已掌握后再次答错同样回退），连续答对归零
             Question question = questionMap.get(questionId);
             Long categoryId = question == null ? null : question.getCategoryId();
             String status = isCorrect == 2 ? "LEARNING" : "UNMASTERED";
             if (existing == null) {
+                // 先物理清理同题残留（含历史逻辑删除行），避免唯一键 uk_user_question 冲突导致收录失败
+                baseMapper.purgeByUserAndQuestion(userId, questionId);
                 WrongQuestion wrong = new WrongQuestion();
                 wrong.setUserId(userId);
                 wrong.setQuestionId(questionId);
@@ -114,16 +130,52 @@ public class WrongQuestionServiceImpl extends ServiceImpl<WrongQuestionMapper, W
                 toUpdate.add(existing);
             }
         }
+        // 下一场考试答对同一题会再次命中更新（last_exam_record_id 已刷新，幂等不受影响）
         if (!toInsert.isEmpty()) {
             saveBatch(toInsert);
         }
         if (!toUpdate.isEmpty()) {
             updateBatchById(toUpdate);
         }
-        if (!toInsert.isEmpty() || !toUpdate.isEmpty()) {
-            log.info("错题本采集完成 examRecordId={} userId={} 新增{}条 更新{}条",
-                    examRecordId, userId, toInsert.size(), toUpdate.size());
+        if (!toInsert.isEmpty() || !toUpdate.isEmpty() || masteredCount > 0) {
+            log.info("错题本同步完成 examRecordId={} userId={} 新增{}条 更新{}条 新掌握{}条",
+                    examRecordId, userId, toInsert.size(), toUpdate.size(), masteredCount);
         }
+    }
+
+    @Override
+    public void toggleMaster(Long userId, Long id) {
+        WrongQuestion wrong = getOwned(userId, id);
+        if ("MASTERED".equals(wrong.getStatus())) {
+            // 取消掌握：回落未掌握并清零连续答对，避免"取消后仍满足自动掌握条件"
+            wrong.setStatus("UNMASTERED");
+            wrong.setCorrectStreak(0);
+        } else {
+            wrong.setStatus("MASTERED");
+            wrong.setCorrectStreak(MASTER_STREAK);
+        }
+        updateById(wrong);
+    }
+
+    @Override
+    public void removeWrongQuestion(Long userId, Long id) {
+        getOwned(userId, id);
+        // 物理删除：避免逻辑删除残留行让该题无法被重新收录（唯一键不含 is_deleted）
+        baseMapper.purgeOwnedById(id, userId);
+    }
+
+    /**
+     * 取指定错题并校验归属（仅本人可操作）
+     */
+    private WrongQuestion getOwned(Long userId, Long id) {
+        WrongQuestion wrong = getById(id);
+        if (wrong == null) {
+            throw new RuntimeException("错题记录不存在或已被移除！");
+        }
+        if (!wrong.getUserId().equals(userId)) {
+            throw new RuntimeException("无权操作他人的错题！");
+        }
+        return wrong;
     }
 
     @Override

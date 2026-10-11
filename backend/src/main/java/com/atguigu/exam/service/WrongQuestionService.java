@@ -16,17 +16,43 @@ import java.util.Map;
  */
 public interface WrongQuestionService extends IService<WrongQuestion> {
 
+    /** 连续答对达到该次数判定为已掌握 */
+    int MASTER_STREAK = 2;
+
     /**
-     * 判卷结算后自动采集错题：答错(is_correct=0)→UNMASTERED，部分正确(is_correct=2)→LEARNING。
-     * 幂等：同一考试记录同一道题只累计一次（依据 last_exam_record_id 去重），判卷重跑不会重复计数。
+     * 判卷结算后同步错题本掌握度状态机：
+     * <ul>
+     *   <li>答错(is_correct=0)：已收录则 wrongCount+1、连续答对归零、状态回落 UNMASTERED（已掌握后再次答错同样回退）；未收录则自动收录</li>
+     *   <li>部分正确(is_correct=2)：同上，状态为 LEARNING（半掌握）</li>
+     *   <li>答对(is_correct=1)：仅回血已收录的错题——连续答对+1，达到 {@link #MASTER_STREAK} 次自动转为 MASTERED；
+     *       未收录的答对题不入库</li>
+     * </ul>
+     * 幂等：依据 last_exam_record_id 判定本场考试该题是否已同步，判卷重跑/重复触发不会重复计数。
      *
      * @param userId        考试记录归属用户
      * @param examRecordId  本次考试记录ID
      * @param answerRecords 本次答题记录（已判分）
-     * @param questionMap   题目ID → 题目 映射（取分类/题干用）
+     * @param questionMap   题目ID → 题目 映射（取分类用）
      */
-    void collectFromExam(Long userId, Integer examRecordId,
+    void syncFromGrading(Long userId, Integer examRecordId,
                          List<AnswerRecord> answerRecords, Map<Long, Question> questionMap);
+
+    /**
+     * 手动切换掌握状态：未掌握/半掌握 → 已掌握；已掌握 → 回落到未掌握（可撤销误操作）。
+     * 手动标记已掌握的题若之后再次答错，由判卷状态机自动回退为未掌握。
+     *
+     * @param userId 当前用户（校验错题归属）
+     * @param id     错题记录ID
+     */
+    void toggleMaster(Long userId, Long id);
+
+    /**
+     * 移出错题本（物理删除）。该题之后若再次答错会被重新收录。
+     *
+     * @param userId 当前用户（校验错题归属）
+     * @param id     错题记录ID
+     */
+    void removeWrongQuestion(Long userId, Long id);
 
     /**
      * 分页查询错题本列表（按最近答错时间倒序），并装配题目详情

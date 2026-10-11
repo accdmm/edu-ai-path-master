@@ -20,3 +20,19 @@ export function getWrongQuestionStats() {
     method: 'get'
   })
 }
+
+// 切换掌握状态（未掌握/半掌握 ↔ 已掌握，可撤销）
+export function toggleWrongQuestionMaster(id) {
+  return request({
+    url: `/api/wrong-questions/${id}/toggle-master`,
+    method: 'post'
+  })
+}
+
+// 移出错题本（之后再次答错会被重新收录）
+export function removeWrongQuestion(id) {
+  return request({
+    url: `/api/wrong-questions/${id}`,
+    method: 'delete'
+  })
+}
