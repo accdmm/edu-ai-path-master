@@ -9,7 +9,7 @@
 
 ```
 edu-ai-path-master/
-├── backend/                     # Spring Boot 3.2.6 + Java 17 + Maven（端口 8080）
+├── backend/                     # Spring Boot 3.2.6 + Java 17 + Maven（端口 8081）
 │   └── src/main/java/com/atguigu/exam/
 ├── frontend/                    # Vue3 + Vite（Element Plus + Pinia + ECharts，端口 3001）
 │   └── src/
@@ -93,7 +93,7 @@ edu-ai-path-master/
 - 新增/改造：
   - `stores/user.js`（pinia：token + userInfo 持久化）
   - `api/user.js`、`api/chat.js`
-  - `utils/request.js`：baseURL=`http://localhost:8080`（绝对地址），自动注入 `Authorization: Bearer`，`/chat` 接口 60s 超时，401 自动 logout 并跳 `/login`。
+  - `utils/request.js`：baseURL=`http://localhost:8081`（绝对地址），自动注入 `Authorization: Bearer`，`/chat` 接口 60s 超时，401 自动 logout 并跳 `/login`。
   - `views/Login.vue`、`Register.vue`、`Chat.vue`（Chat 从旧前端整页拷贝）
   - `router/index.js`：新增 `/login`、`/register`、`/chat`（requiresAuth 守卫，带 redirect 回跳）
   - `views/Home.vue`：导航栏加 AI 客服入口、用户下拉退出、管理员登录改走真实 `/api/user/login` 并校验 role=ADMIN 后存 token。
@@ -191,7 +191,7 @@ pinecone:
 - **后端**：`FinanceRecord` / `FinanceRecordMapper` / `FinanceReportVo`（概览/月度/年度/分类嵌套 VO，仿 LearningReportVo 模式）/ `FinanceQueryVo` / `FinanceService(Impl)` / `FinanceController`（`/api/admin/finance/overview|monthly|yearly|category-stats|categories|records|export`）。聚合走「条件查询 + 代码层聚合」，导出用 POI XSSFWorkbook（`#,##0.00` 金额格式 + 底部合计区）。
 - **前端**：`views/FinanceReport.vue`（Element 浅色风格 + echarts）、`api/finance.js`、路由 `/admin/finance`、`AdminLayout.vue` 新增「财务管理」菜单分组；同时把该文件内 `el-submenu` 统一改为官方组件名 `el-sub-menu`（消除控制台 Vue warn）。
 - **验证**：21 项接口/DB 对账/导出断言全过（2026 年度：收入 ¥334,213.11 / 支出 ¥206,031.45 / 净利润 ¥128,181.66 / 利润率 38%）；浏览器实测统计卡、双图表、三 Tab、筛选（收入筛选 215→145 条）、菜单跳转均正常，控制台无报错。
-- **环境备注（2026-10-11）**：启动方式——MySQL 常驻；Redis `D:\Redis\Redis-x64-5.0.14.1\redis-server.exe`；MongoDB `D:\mongodb\bin\mongod.exe --dbpath D:\mongodb-data --port 27017 --bind_ip 127.0.0.1`；后端 `mvn spring-boot:run`（`DASHSCOPE_API_KEY` 已存于用户环境变量）；前端 `npm run dev`。`ALIPAY_PRIVATE_KEY` 环境变量已丢失（旧 launch 脚本被清理），支付类接口需要时需重新注入。注意 8080 可能被 smart-elderly-companion 后端占用，启动前先确认端口。
+- **环境备注（2026-10-11）**：启动方式——MySQL 常驻；Redis `D:\Redis\Redis-x64-5.0.14.1\redis-server.exe`；MongoDB `D:\mongodb\bin\mongod.exe --dbpath D:\mongodb-data --port 27017 --bind_ip 127.0.0.1`；后端 `mvn spring-boot:run`（`DASHSCOPE_API_KEY` 已存于用户环境变量）；前端 `npm run dev`。`ALIPAY_PRIVATE_KEY` 环境变量已丢失（旧 launch 脚本被清理），支付类接口需要时需重新注入。注意 8080 可能被其他项目占用；**后端端口自 2026-10-11 起为 8081**（8080 让给其他项目，8081 原被 smart-elderly-companion 占用需先停）。改端口需同步三处：`backend/src/main/resources/application.yml`、`frontend/src/utils/request.js`、`frontend/vite.config.js`（页面内若直写后端地址请改用 `request.defaults.baseURL`）。
 
 ### 5.5 管理端三项 UI 修复（2026-10-11，已浏览器实测）
 
@@ -218,7 +218,7 @@ pinecone:
 
 ```bash
 # 后端编译/启动（PowerShell）
-cd backend; mvn compile -q; mvn spring-boot:run        # 8080
+cd backend; mvn compile -q; mvn spring-boot:run        # 8081
 # 前端启动/构建
 cd frontend; npm run dev                                # 3001
 npm run build

@@ -199,6 +199,7 @@ import { ElMessage } from 'element-plus'
 import { Download, Search, Refresh } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import axios from 'axios'
+import request from '../utils/request'
 import { useUserStore } from '@/stores/user'
 import {
   getFinanceOverview,
@@ -438,7 +439,7 @@ const handleExport = async () => {
     const params = buildQueryParams()
     delete params.page
     delete params.size
-    const resp = await axios.get('http://localhost:8080/api/admin/finance/export', {
+    const resp = await axios.get(request.defaults.baseURL + '/api/admin/finance/export', {
       params,
       responseType: 'blob',
       headers: userStore.token ? { Authorization: `Bearer ${userStore.token}` } : {}

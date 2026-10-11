@@ -1,5 +1,5 @@
 server:
-  port: 8080 #端口号要根据前端request.js对应
+  port: 8081 #后端端口；与前端 utils/request.js 的 baseURL 对应（2026-10-11 起由 8080 改为 8081，8080 让给其他项目）
 
 
 logging:

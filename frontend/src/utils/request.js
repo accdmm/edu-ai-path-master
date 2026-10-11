@@ -4,7 +4,7 @@ import { useUserStore } from '@/stores/user'
 import router from '@/router'
 
 const request = axios.create({
-  baseURL: 'http://localhost:8080',
+  baseURL: 'http://localhost:8081', // 后端端口（与 backend/application.yml 的 server.port 对应；2026-10-11 起为 8081）
   timeout: 100000,
   headers: {
     'Content-Type': 'application/json'

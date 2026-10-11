@@ -16,7 +16,7 @@ export default defineConfig({
     //现在配置的绝对地址，不走代理！后台处理跨域
     proxy: {
       '/api': {
-        target: 'http://localhost:8080', // 后端服务地址
+        target: 'http://localhost:8081', // 后端服务地址（与 application.yml 的 server.port 对应）
         changeOrigin: true
       }
     }

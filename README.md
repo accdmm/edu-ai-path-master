@@ -56,7 +56,7 @@ cd backend
 mvn spring-boot:run
 ```
 
-后端默认端口 **8080**。
+后端默认端口 **8081**（2026-10-11 起由 8080 调整，8080 让给其他项目；切换端口需同步 `application.yml`、`utils/request.js`、`vite.config.js`）。
 
 ### 4. 启动前端
 
@@ -93,7 +93,7 @@ MongoDB 用于持久化客服对话记忆（集合 `chat_messages`），未安�
 
 - **后端状态码**：`Result<T>` 中 `200` 成功，`401` 未登录（未带 token 访问受保护接口也返回 401 JSON，前端据此跳登录）。
 - **需要登录的接口**：`/api/chat/**`、`/api/user/info`、`/api/user/updatePwd`。其余接口渐进式放行（后续可收紧）。
-- **前端请求**：`frontend/src/utils/request.js` 使用绝对地址 `http://localhost:8080`，自动附加 `Authorization: Bearer <token>`，`/chat` 接口超时 60s，401 自动跳转 `/login`。
+- **前端请求**：`frontend/src/utils/request.js` 使用绝对地址 `http://localhost:8081`，自动附加 `Authorization: Bearer <token>`，`/chat` 接口超时 60s，401 自动跳转 `/login`。
 - **聊天历史**：`ChatController` 提供 `/api/chat/history`（按用户分组），删除/清空记录由管理员接口完成。
 
 ## 已知限制
