@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 
 // 路由配置
@@ -60,6 +61,8 @@ const routes = [
     name: 'AdminLayout',
     component: () => import('../views/AdminLayout.vue'),
     redirect: '/admin/welcome',
+    // 管理端：需登录且必须是管理员角色（此前任意人可直接访问 /admin/*）
+    meta: { requiresAuth: true, requiresAdmin: true },
     children: [
       {
         path: 'welcome',
@@ -133,43 +136,43 @@ const routes = [
     path: '/exam/list',
     name: 'PaperListForExam',
     component: () => import('../views/PaperListForExam.vue'),
-    meta: { title: '选择考试' }
+    meta: { title: '选择考试', requiresAuth: true }
   },
   {
     path: '/exam/start/:paperId',
     name: 'ExamStart',
     component: () => import('../views/ExamStart.vue'),
-    meta: { title: '开始考试' }
+    meta: { title: '开始考试', requiresAuth: true }
   },
   {
     path: '/exam/:id',
     name: 'Exam',
     component: () => import('../views/Exam.vue'),
-    meta: { title: '在线考试' }
+    meta: { title: '在线考试', requiresAuth: true }
   },
   {
     path: '/exam-result',
     name: 'ExamResult',
     component: () => import('../views/ExamResult.vue'),
-    meta: { title: '考试结果' }
+    meta: { title: '考试结果', requiresAuth: true }
   },
   {
     path: '/exam-result/:id',
     name: 'ExamResultById',
     component: () => import('../views/ExamResult.vue'),
-    meta: { title: '考试结果' }
+    meta: { title: '考试结果', requiresAuth: true }
   },
   {
     path: '/exam-ranking',
     name: 'ExamRanking',
     component: () => import('../views/ExamRanking.vue'),
-    meta: { title: '考试排行榜' }
+    meta: { title: '考试排行榜', requiresAuth: true }
   },
   {
     path: '/practice',
     name: 'Practice',
     component: () => import('../views/Practice.vue'),
-    meta: { title: '刷题练习' }
+    meta: { title: '刷题练习', requiresAuth: true }
   },
   // 3分钟技术短视频相关路由
   {
@@ -206,7 +209,7 @@ const routes = [
     path: '/interview-practice/:id',
     name: 'InterviewPractice',
     component: () => import('../views/InterviewPractice.vue'),
-    meta: { title: '真题练习' }
+    meta: { title: '真题练习', requiresAuth: true }
   },
   // 模拟面试相关路由
   {
@@ -225,13 +228,13 @@ const routes = [
     path: '/mock-interview/:id',
     name: 'MockInterviewDetail',
     component: () => import('../views/MockInterviewDetail.vue'),
-    meta: { title: '面试详情' }
+    meta: { title: '面试详情', requiresAuth: true }
   },
   {
     path: '/interview-result/:id',
     name: 'InterviewResult',
     component: () => import('../views/InterviewResult.vue'),
-    meta: { title: '面试结果' }
+    meta: { title: '面试结果', requiresAuth: true }
   },
   // 用户贡献相关路由
   // 已彻底删除 path:'/user-contributions' 路由配置
@@ -307,6 +310,16 @@ router.beforeEach((to, from, next) => {
   if (to.meta.requiresAuth && !userStore.token) {
     next({ path: '/login', query: { redirect: to.fullPath } })
     return
+  }
+
+  // 需要管理员角色的路由（管理端）
+  if (to.meta.requiresAdmin) {
+    const role = (userStore.userInfo?.role || '').toUpperCase()
+    if (role !== 'ADMIN') {
+      ElMessage.error('需要管理员权限，请先登录管理员账号')
+      next('/home')
+      return
+    }
   }
 
   // 已登录用户访问登录/注册页，跳回首页

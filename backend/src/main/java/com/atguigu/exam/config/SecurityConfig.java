@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -62,6 +63,20 @@ public class SecurityConfig {
                 .requestMatchers("/api/chat/**").authenticated()
                 .requestMatchers("/api/user/info", "/api/user/updatePwd").authenticated()
                 .requestMatchers("/api/analysis/**").authenticated()
+
+                // 🔒 考试与刷题：必须登录（此前匿名即可开始/提交考试，且 userId 会回退为默认用户 1）
+                .requestMatchers("/api/exams/**", "/api/exam-records/**").authenticated()
+                // 🔒 试卷写操作（创建/修改/删除/AI 组卷）需登录；读接口保持公开以便浏览试卷与排行
+                .requestMatchers(HttpMethod.POST, "/api/papers/**").authenticated()
+                .requestMatchers(HttpMethod.PUT, "/api/papers/**").authenticated()
+                .requestMatchers(HttpMethod.DELETE, "/api/papers/**").authenticated()
+                // 🔒 题目写操作（新增/修改/删除/批量导入）需登录；题目浏览保持公开
+                .requestMatchers(HttpMethod.POST, "/api/questions/**").authenticated()
+                .requestMatchers(HttpMethod.PUT, "/api/questions/**").authenticated()
+                .requestMatchers(HttpMethod.DELETE, "/api/questions/**").authenticated()
+                // 🔒 按用户维度生成的功能：学习路径 / 模拟面试 / AI 面试官
+                .requestMatchers("/api/learning-path/**").authenticated()
+                .requestMatchers("/api/mock-interview/**", "/api/ai-interview/**").authenticated()
 
                 // 💳 支付：支付宝服务器回调（无 token）需放行，其余支付接口需登录
                 .requestMatchers("/api/pay/alipay/notify").permitAll()

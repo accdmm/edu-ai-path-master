@@ -96,7 +96,8 @@ public class ExamServiceImpl extends ServiceImpl<ExamRecordMapper, ExamRecord> i
     //开始考试
     @Override
     public ExamRecord startExam(StartExamVo startExamVo) {
-        Long currentUserId = userContextUtil.getUserId();
+        // 业务层鉴权：必须登录（不再回退默认用户，避免匿名请求以 user 1 身份建考试/扣积分）
+        Long currentUserId = userContextUtil.requireUserId();
         //宏观： 创建一个考试对象，并存储到数据库即可
         //0. 私有试卷(DRAFT/AI生成卷)开考权限校验：仅归属用户可考；PUBLISHED 对所有用户开放
         Paper paper = paperService.getById(startExamVo.getPaperId());
@@ -152,6 +153,8 @@ public class ExamServiceImpl extends ServiceImpl<ExamRecordMapper, ExamRecord> i
         if (examRecord == null) {
             throw new RuntimeException("开始考试的记录已经被删除！");
         }
+        // 业务层鉴权：仅本人或管理员可查看
+        assertRecordAccessible(examRecord);
         //2. 获取考试记录对应试卷对象详情 【试卷 题目 选项 和 答案】
         Paper paper = paperService.customPaperDetailById(examRecord.getExamId().longValue());
         if (paper == null) {
@@ -465,12 +468,31 @@ public class ExamServiceImpl extends ServiceImpl<ExamRecordMapper, ExamRecord> i
         //重要的关联数据校验，有删除失败！
         //判断自身状态，进行中不能删除
         ExamRecord examRecord = getById(id);
+        if (examRecord == null) {
+            throw new RuntimeException("考试记录不存在，无法删除！");
+        }
+        // 业务层鉴权：仅本人或管理员可删除
+        assertRecordAccessible(examRecord);
         if ("进行中".equals(examRecord.getStatus())){
             throw new RuntimeException("正在考试中，无法直接删除！");
         }
         //删除自身数据，同时删除答题记录
         removeById(id);
         answerRecordService.remove(new LambdaQueryWrapper<AnswerRecord>().eq(AnswerRecord::getExamRecordId,id));
+    }
+
+    /**
+     * 业务层鉴权：考试记录仅本人或管理员可访问
+     * 与 SecurityConfig 的 /api/exam-records/** 登录校验、前端路由守卫共同构成三层防护
+     */
+    private void assertRecordAccessible(ExamRecord examRecord) {
+        if (userContextUtil.isAdmin()) {
+            return;
+        }
+        Long currentUserId = userContextUtil.getUserId();
+        if (examRecord.getUserId() == null || !examRecord.getUserId().equals(currentUserId)) {
+            throw new RuntimeException("无权访问他人的考试记录！");
+        }
     }
 
     @Override

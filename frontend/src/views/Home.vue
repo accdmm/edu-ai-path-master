@@ -26,7 +26,7 @@
         </template>
         <el-button v-else @click="goToLogin" icon="User">登录</el-button>
         <el-button v-if="isAdmin" type="primary" @click="goAdminConsole" icon="Setting">返回管理后台</el-button>
-        <el-button v-else @click="showAdminLogin" icon="Edit">管理员后台</el-button>
+        <el-button v-else-if="!userStore.token" @click="showAdminLogin" icon="Edit">管理员后台</el-button>
       </div>
     </div>
 

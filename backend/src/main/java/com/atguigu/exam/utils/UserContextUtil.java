@@ -2,10 +2,12 @@ package com.atguigu.exam.utils;
 
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.security.Principal;
 
@@ -35,6 +37,24 @@ public class UserContextUtil {
             }
         }
         return 1L;
+    }
+
+    /**
+     * 严格取当前用户 ID：未登录直接抛 401
+     * 用于必须登录的业务（考试/判卷等），避免 getUserId() 的「默认用户 1」回退被匿名请求利用
+     */
+    public Long requireUserId() {
+        String bearerToken = request.getHeader("Authorization");
+        if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
+            try {
+                Long userId = jwtUtil.getUserIdFromToken(bearerToken.substring(7));
+                if (userId != null) {
+                    return userId;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "未登录或登录已过期");
     }
 
     /**

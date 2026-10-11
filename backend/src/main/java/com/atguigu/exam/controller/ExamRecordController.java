@@ -6,6 +6,7 @@ import com.atguigu.exam.entity.Paper;
 import com.atguigu.exam.service.ExamService;
 import com.atguigu.exam.service.PaperService;
 import com.atguigu.exam.vo.ExamRankingVO;
+import com.atguigu.exam.utils.UserContextUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -41,6 +42,9 @@ public class ExamRecordController {
     @Autowired
     private PaperService paperService;
 
+    @Autowired
+    private UserContextUtil userContextUtil;
+
     /**
      * 分页查询考试记录
      */
@@ -70,6 +74,10 @@ public class ExamRecordController {
         }
         lambdaQueryWrapper.ge(!ObjectUtils.isEmpty(startDate),ExamRecord::getStartTime,startDate);
         lambdaQueryWrapper.le(!ObjectUtils.isEmpty(endDate),ExamRecord::getStartTime,endDate);
+        // 业务层鉴权：非管理员只能查看自己的考试记录（管理员走成绩管理页，可查全部）
+        if (!userContextUtil.isAdmin()) {
+            lambdaQueryWrapper.eq(ExamRecord::getUserId, userContextUtil.getUserId());
+        }
 
         examService.page(myPage,lambdaQueryWrapper);
 

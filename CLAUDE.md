@@ -210,6 +210,17 @@ pinecone:
 - **背景动画（2026-10-11）**：`frontend/src/components/AuthBackground.vue` —— **只保留「漂浮几何」一种方案**（＋ ○ □ 共 14 个小元素；符号取自考试页的题号方块 / 答题卡）。节奏为「呼吸」：`opacity 0 → 0.72 → 0`（淡出消失→淡入出现）+ 上下浮动 `translateY -16px→+16px` 与轻微旋转/缩放，半周期 5.5–9s（一次完整呼吸约 11–18s），各元素负 `animation-delay` 错峰；位置贴左右两侧、避开中央内容列；≤768px 仅保留最外侧 6 个并把整层不透明度降到 0.75（`is-mobile-hidden`）。预览见 `frontend/public/login-styles-preview.html` 的「背景动画」区块。（早期实现过的「流动光晕 aurora」与「点阵视差 grid」已按用户要求删除，代码内无残留。）
   性能与降级：只动画 `transform`/`opacity`（合成层）+ `contain: strict` + `pointer-events: none` + `aria-hidden`；`prefers-reduced-motion` 或 CPU ≤ 2 核 / 内存 ≤ 2GB → 全部静止并兜底显示为 0.45 不透明度（避免 `opacity:0` 导致图形彻底不可见）；标签页切后台 → `animation-play-state: paused`。实测（Chromium）：**60 FPS、最长帧 17.6ms、掉帧 0、控制台 0 error**，全周期采样确认透明度在 0↔0.72 之间呼吸；`prefers-reduced-motion` 降级为代码级验证（自动化工具无法模拟系统偏好，可用系统「关闭动画效果」人工复核）。
 
+### 5.7 登录鉴权加固（三层，2026-10-11，已接口级 + 浏览器实测）
+
+- **原漏洞**：后端 `SecurityConfig` 为 `.anyRequest().permitAll()`，考试/刷题/管理端接口匿名可调用；且 `UserContextUtil.getUserId()` 无 token 时**回退默认用户 1**，导致匿名请求能以 user 1 身份开考、扣积分、读写学习路径。
+- **三层边界**：
+  1. **路由层**（`frontend/src/router/index.js`）：`/exam/list|start/:paperId|:id`、`/exam-result*`、`/exam-ranking`、`/practice`、`/interview-practice/:id`、`/mock-interview/:id`、`/interview-result/:id` 加 `requiresAuth`；`/admin` 加 `requiresAuth + requiresAdmin`（非 ADMIN 跳回 `/home`）；未登录统一跳 `/login?redirect=<原地址>`。
+  2. **API 层**（`frontend/src/utils/request.js`）：新增需鉴权前缀清单（exams / exam-records / learning-path / analysis / chat / pay / mock-interview / ai-interview），无 token 时**不发请求**直接跳登录页；401 处理统一带 `redirect` 回跳。
+  3. **后端业务层**：`SecurityConfig` 显式收紧（`/api/exams/**`、`/api/exam-records/**`、`/api/learning-path/**`、`/api/mock-interview/**`、`/api/ai-interview/**` 需登录；`/api/papers|questions` 的 POST/PUT/DELETE 需登录）；新增 `UserContextUtil.requireUserId()`（未登录抛 401）并在 `ExamServiceImpl.startExam` 使用；`ExamServiceImpl.assertRecordAccessible()`（考试记录仅本人或管理员可读/删）；`ExamRecordController./list` 非管理员只能查自己的记录。
+- **刻意保留的公开边界**：题目浏览（`/api/questions/list|popular|category|difficulty|{id}`）、企业真题浏览（`/api/interview-questions/*` 读接口）、轮播/公告/视频/统计读接口；对应前端 `/home`、`/interview-questions`、`/videos` 等浏览页不限登录。
+- **实测**：匿名 `POST /api/exams/start`、`GET /api/exam-records/list|ranking`、`GET /api/learning-path/active` → 全 401；公开接口全 200；登录后 `exam-records/list`、`exams/records` → 200。浏览器路由实测 7 步全过（含 student 登录访问 `/admin/welcome` 被弹回 `/home`；非管理员不再显示「管理员后台」按钮）。
+- **已知残留（未处理，非本次引入）**：`Welcome.vue` 企业 logo 引用外链 `picsum.photos`（网络不通时控制台 ERR_ABORTED）；`Welcome.vue` 一条 ElIcon reactive 警告。
+
 ## 6. 还需做（待办/阻塞项）
 
 ### 阻塞项（等待用户提供）
