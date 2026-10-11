@@ -1,5 +1,6 @@
 package com.atguigu.exam.service;
 
+import com.atguigu.exam.common.Result;
 import com.atguigu.exam.entity.AnswerRecord;
 import com.atguigu.exam.entity.Question;
 import com.atguigu.exam.entity.WrongQuestion;
@@ -72,4 +73,14 @@ public interface WrongQuestionService extends IService<WrongQuestion> {
      * @param userId 当前用户
      */
     WrongQuestionStatsVo stats(Long userId);
+
+    /**
+     * AI 解析错题：讲解考点、解题步骤与常见误区。
+     * 复用统一 AI 解析计费：每日 3 次免费，超出每次扣 5 积分（type=ai-analysis，与刷题/真题解析共用额度）。
+     *
+     * @param userId 当前用户（校验错题归属）
+     * @param id     错题记录ID
+     * @return 统一响应：{analysis, free, remainingFree, activeCredits}；积分不足返回 4002
+     */
+    Result<Map<String, Object>> aiAnalysis(Long userId, Long id);
 }

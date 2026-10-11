@@ -1,16 +1,21 @@
 package com.atguigu.exam.service.impl;
 
+import com.atguigu.exam.common.Result;
 import com.atguigu.exam.entity.AnswerRecord;
 import com.atguigu.exam.entity.Category;
+import com.atguigu.exam.entity.CreditRecord;
 import com.atguigu.exam.entity.Question;
 import com.atguigu.exam.entity.QuestionAnswer;
 import com.atguigu.exam.entity.QuestionChoice;
 import com.atguigu.exam.entity.WrongQuestion;
+import com.atguigu.exam.mapper.CreditRecordMapper;
 import com.atguigu.exam.mapper.QuestionAnswerMapper;
 import com.atguigu.exam.mapper.QuestionChoiceMapper;
 import com.atguigu.exam.mapper.WrongQuestionMapper;
 import com.atguigu.exam.service.AnswerRecordService;
 import com.atguigu.exam.service.CategoryService;
+import com.atguigu.exam.service.CreditBillingService;
+import com.atguigu.exam.service.MockInterviewAiService;
 import com.atguigu.exam.service.QuestionService;
 import com.atguigu.exam.service.WrongQuestionService;
 import com.atguigu.exam.vo.WrongQuestionStatsVo;
@@ -25,7 +30,9 @@ import org.springframework.util.ObjectUtils;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -61,6 +68,21 @@ public class WrongQuestionServiceImpl extends ServiceImpl<WrongQuestionMapper, W
 
     @Autowired
     private AnswerRecordService answerRecordService;
+
+    /** AI 解析计费：每日免费次数（与刷题/真题解析共用 type=ai-analysis 额度） */
+    private static final int AI_ANALYSIS_DAILY_FREE = 3;
+
+    /** AI 解析计费：超出免费次数后每次扣减积分 */
+    private static final int AI_ANALYSIS_COST = 5;
+
+    @Autowired
+    private MockInterviewAiService mockInterviewAiService;
+
+    @Autowired
+    private CreditBillingService creditBillingService;
+
+    @Autowired
+    private CreditRecordMapper creditRecordMapper;
 
     @Override
     public void syncFromGrading(Long userId, Integer examRecordId,
@@ -315,5 +337,77 @@ public class WrongQuestionServiceImpl extends ServiceImpl<WrongQuestionMapper, W
         categories.sort((a, b) -> b.getTotal() - a.getTotal());
         vo.setCategories(categories);
         return vo;
+    }
+
+    @Override
+    public Result<Map<String, Object>> aiAnalysis(Long userId, Long id) {
+        //1. 校验错题归属（仅本人可解析自己的错题）；归属异常直接抛由全局处理器返回
+        WrongQuestion wrong = getOwned(userId, id);
+        try {
+            //2. 复用列表装配逻辑取题目详情（题干/选项/标准答案）
+            List<WrongQuestionVo> vos = assembleVos(List.of(wrong));
+            if (ObjectUtils.isEmpty(vos)) {
+                return Result.error(404, "题目信息不存在，无法解析");
+            }
+            WrongQuestionVo detail = vos.get(0);
+            if (detail.getTitle() == null) {
+                return Result.error(404, "题目已被删除，无法解析");
+            }
+            //3. 先调 LLM，成功后再计费（选择题目附上选项，保证讲解有上下文）
+            String questionContent = buildAnalysisContent(detail);
+            String analysis = mockInterviewAiService.explainPaperQuestion(questionContent, detail.getCorrectAnswer());
+            if (analysis == null || analysis.isBlank()) {
+                return Result.error("AI 解析暂时繁忙，请稍后重试");
+            }
+            //4. 统一 AI 解析计费：每日 3 次免费，超出扣 5 积分（与刷题/真题解析共用额度）
+            return chargeAiAnalysis(userId, analysis);
+        } catch (Exception e) {
+            log.error("AI 解析错题失败 id={} userId={}", id, userId, e);
+            return Result.error("AI 解析失败，请稍后重试");
+        }
+    }
+
+    /**
+     * 构造解析输入：题干 + 选择题选项（标注字母），让 AI 讲解时能引用具体选项
+     */
+    private String buildAnalysisContent(WrongQuestionVo detail) {
+        StringBuilder content = new StringBuilder(detail.getTitle());
+        if ("CHOICE".equalsIgnoreCase(detail.getType()) && !ObjectUtils.isEmpty(detail.getChoices())) {
+            content.append("\n选项：");
+            List<QuestionChoice> choices = detail.getChoices();
+            for (int i = 0; i < choices.size(); i++) {
+                content.append((char) ('A' + i)).append(". ").append(choices.get(i).getContent()).append("  ");
+            }
+        }
+        return content.toString();
+    }
+
+    /**
+     * 统一 AI 解析计费：每日免费额度内不扣积分；超出后条件扣费（积分不足返回 4002），
+     * 流水写入统一计费服务（type=ai-analysis），与刷题/真题解析额度打通
+     */
+    private Result<Map<String, Object>> chargeAiAnalysis(Long userId, String analysis) {
+        Date todayStart = Date.from(LocalDateTime.now().toLocalDate()
+                .atStartOfDay(ZoneId.systemDefault()).toInstant());
+        long freeCount = creditRecordMapper.selectCount(new LambdaQueryWrapper<CreditRecord>()
+                .eq(CreditRecord::getUserId, userId)
+                .eq(CreditRecord::getType, "ai-analysis")
+                .eq(CreditRecord::getChangeAmount, 0)
+                .ge(CreditRecord::getCreateTime, todayStart));
+        boolean free = freeCount < AI_ANALYSIS_DAILY_FREE;
+        if (!free && !creditBillingService.deductIfEnough(userId, AI_ANALYSIS_COST)) {
+            return Result.error(4002, "积分不足，AI 解析每道题需 " + AI_ANALYSIS_COST
+                    + " 积分，可购买邀请码获取积分");
+        }
+        int balance = creditBillingService.currentBalance(userId);
+        creditBillingService.record(userId, free ? 0 : -AI_ANALYSIS_COST, "ai-analysis",
+                free ? "AI解析免费额度" : "AI试题解析", balance);
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("analysis", analysis);
+        data.put("free", free);
+        data.put("remainingFree", Math.max(0, AI_ANALYSIS_DAILY_FREE - (int) freeCount - (free ? 1 : 0)));
+        data.put("activeCredits", balance);
+        return Result.success(data);
     }
 }

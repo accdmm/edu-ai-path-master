@@ -72,6 +72,7 @@
               <div class="item-tags">
                 <el-tag :type="typeTag(item.type)" size="small" effect="light">{{ typeText(item.type) }}</el-tag>
                 <el-tag :type="difficultyTag(item.difficulty)" size="small" effect="plain">{{ difficultyText(item.difficulty) }}</el-tag>
+                <el-tag v-if="item.multi" type="warning" size="small" effect="plain">多选</el-tag>
                 <el-tag v-if="item.categoryName" size="small" effect="plain" class="category-tag">{{ item.categoryName }}</el-tag>
               </div>
               <div class="item-title">{{ item.title }}</div>
@@ -85,31 +86,120 @@
 
           <el-collapse-transition>
             <div v-show="expandedIds.has(item.id)" class="item-detail">
-              <!-- 选择题选项 -->
-              <div v-if="item.type === 'CHOICE'" class="choices">
+              <!-- 选择题：点击选项重新作答（与刷题交互一致） -->
+              <div v-if="item.type === 'CHOICE'" class="question-choices">
                 <div
                   v-for="(choice, idx) in item.choices"
                   :key="choice.id"
                   class="choice-item"
                   :class="choiceClass(item, idx)"
+                  @click.stop="selectChoice(item, idx)"
                 >
-                  <span class="choice-letter">{{ letterOf(idx) }}</span>
+                  <span class="choice-label">{{ letterOf(idx) }}</span>
                   <span class="choice-content">{{ choice.content }}</span>
-                  <el-tag v-if="isChoiceCorrect(item, idx)" type="success" size="small" effect="light" round>正确答案</el-tag>
-                  <el-tag v-if="isUserChoice(item, idx)" type="danger" size="small" effect="light" round>你的选择</el-tag>
+                  <el-icon v-if="showCorrectMark(item, idx)" class="correct-icon"><Check /></el-icon>
+                  <span v-if="showHistoryWrong(item, idx)" class="history-tag">上次选错</span>
                 </div>
               </div>
 
-              <!-- 作答对比 -->
-              <div class="answer-compare">
-                <div class="answer-block user-answer">
-                  <span class="answer-label">你的答案</span>
-                  <span class="answer-value">{{ displayAnswer(item.userAnswer, item.type) || '未作答' }}</span>
+              <!-- 判断题：单选框作答 -->
+              <div v-if="item.type === 'JUDGE'" class="judge-options">
+                <el-radio-group
+                  v-model="retryOf(item).answer"
+                  @change="handleJudgeAnswer(item)"
+                >
+                  <el-radio value="TRUE" size="large">正确</el-radio>
+                  <el-radio value="FALSE" size="large">错误</el-radio>
+                </el-radio-group>
+              </div>
+
+              <!-- 简答题：文本作答（不自动判对错） -->
+              <div v-if="item.type === 'TEXT'" class="text-answer">
+                <el-input
+                  v-model="retryOf(item).answer"
+                  type="textarea"
+                  :rows="4"
+                  placeholder="请输入您的答案..."
+                />
+              </div>
+
+              <!-- 实时校验反馈（与刷题反馈格式一致） -->
+              <div v-if="feedbackVisible(item)" class="feedback-section">
+                <el-alert
+                  :title="retryOf(item).correct ? '回答正确！' : '回答错误！'"
+                  :type="retryOf(item).correct ? 'success' : 'error'"
+                  show-icon
+                  :closable="false"
+                >
+                  <div v-if="!retryOf(item).correct">
+                    <div>你的答案是：<strong>{{ formatRetryAnswer(item) }}</strong></div>
+                  </div>
+                </el-alert>
+              </div>
+
+              <!-- 操作行：查看答案 / AI 解析 -->
+              <div class="detail-toolbar">
+                <el-button
+                  size="small"
+                  :type="revealedIds.has(item.id) ? 'warning' : 'primary'"
+                  @click.stop="toggleAnswer(item)"
+                >
+                  {{ revealedIds.has(item.id) ? '隐藏答案' : '查看答案' }}
+                </el-button>
+                <el-button
+                  type="warning"
+                  plain
+                  size="small"
+                  :loading="aiState(item.id).loading"
+                  @click.stop="handleAiAnalysis(item)"
+                >
+                  <el-icon><MagicStick /></el-icon>
+                  <span class="btn-text">AI 解析本题</span>
+                </el-button>
+                <span v-if="aiState(item.id).result" class="ai-tip" :class="{ 'is-free': aiState(item.id).free }">
+                  {{ aiTip(aiState(item.id)) }}
+                </span>
+              </div>
+
+              <!-- 答案区（与正式刷题场景格式完全一致） -->
+              <div v-if="revealedIds.has(item.id)" class="answer-section">
+                <div class="answer-header">
+                  <el-icon><InfoFilled /></el-icon>
+                  <span>正确答案</span>
                 </div>
-                <div class="answer-block correct-answer">
-                  <span class="answer-label">正确答案</span>
-                  <span class="answer-value">{{ displayAnswer(item.correctAnswer, item.type) }}</span>
+                <div class="answer-content">
+                  <div v-if="item.type === 'CHOICE'">
+                    <div v-for="(choice, idx) in item.choices" :key="choice.id">
+                      <span v-if="isChoiceCorrect(item, idx)" class="correct-answer">
+                        {{ letterOf(idx) }}. {{ choice.content }}
+                      </span>
+                    </div>
+                  </div>
+                  <div v-else-if="item.type === 'JUDGE'">
+                    <span class="correct-answer">{{ isTrueAnswer(item) ? '正确' : '错误' }}</span>
+                  </div>
+                  <div v-else>
+                    <div class="text-answer-content">{{ item.correctAnswer }}</div>
+                  </div>
                 </div>
+
+                <div v-if="item.analysis" class="analysis-section">
+                  <div class="analysis-header">
+                    <el-icon><Notebook /></el-icon>
+                    <span>题目解析</span>
+                  </div>
+                  <div class="analysis-content">{{ item.analysis }}</div>
+                </div>
+              </div>
+
+              <!-- AI 解析结果 -->
+              <div v-if="aiState(item.id).loading" class="ai-analysis-row">
+                <span class="ai-analysis-label">AI 解析：</span>
+                <span class="ai-analysis-text">AI 正在讲解，约需 10~30 秒...</span>
+              </div>
+              <div v-else-if="aiState(item.id).result" class="ai-analysis-row">
+                <span class="ai-analysis-label">AI 解析：</span>
+                <span class="ai-analysis-text">{{ aiState(item.id).result }}</span>
               </div>
 
               <!-- 掌握进度 -->
@@ -124,18 +214,6 @@
                   :show-text="false"
                   :color="masteryColor"
                 />
-              </div>
-
-              <!-- AI 评语（简答题） -->
-              <div v-if="item.aiCorrection" class="note-block ai-correction">
-                <span class="note-label ai-label">AI 批改</span>
-                <span class="note-content">{{ item.aiCorrection }}</span>
-              </div>
-
-              <!-- 解析 -->
-              <div v-if="item.analysis" class="note-block analysis">
-                <span class="note-label">解析</span>
-                <span class="note-content">{{ item.analysis }}</span>
               </div>
 
               <div class="detail-footer">
@@ -187,15 +265,18 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Collection, ArrowDown, Aim } from '@element-plus/icons-vue'
+import {
+  Collection, ArrowDown, Aim, Check, InfoFilled, Notebook, MagicStick
+} from '@element-plus/icons-vue'
 import {
   getWrongQuestions,
   getWrongQuestionStats,
   toggleWrongQuestionMaster,
-  removeWrongQuestion
+  removeWrongQuestion,
+  aiAnalyzeWrongQuestion
 } from '@/api/wrongQuestion'
 
 const router = useRouter()
@@ -212,6 +293,12 @@ const total = ref(0)
 const activeCategoryId = ref(null)
 const statusFilter = ref('')
 const expandedIds = ref(new Set())
+/** 已展开"查看答案"的错题ID */
+const revealedIds = ref(new Set())
+/** 重新作答状态：错题ID -> { answer, correct, answered } */
+const retryStates = reactive({})
+/** AI 解析状态：错题ID -> { loading, result, free, remainingFree, credits } */
+const aiStates = reactive({})
 /** 操作进行中的错题ID：防止连续点击导致掌握状态被反复切换 */
 const actionLoadingId = ref(null)
 
@@ -222,6 +309,25 @@ const emptyText = computed(() =>
     ? '当前筛选条件下没有错题'
     : '还没有错题记录。考试交卷判卷后，答错和部分正确的题目会自动收录到这里'
 )
+
+function retryOf(item) {
+  if (!retryStates[item.id]) {
+    retryStates[item.id] = { answer: '', correct: false, answered: false }
+  }
+  return retryStates[item.id]
+}
+
+function aiState(id) {
+  if (!aiStates[id]) {
+    aiStates[id] = { loading: false, result: '', free: false, remainingFree: 3, credits: 0 }
+  }
+  return aiStates[id]
+}
+
+const aiTip = (s) =>
+  s.free
+    ? `已用免费额度 · 今日剩余 ${s.remainingFree} 次`
+    : `本次消耗 5 积分 · 当前 ${s.credits} 积分`
 
 async function loadStats() {
   try {
@@ -290,6 +396,145 @@ function toggleExpand(id) {
   expandedIds.value = next
 }
 
+// ------- 作答交互（对齐刷题模块） -------
+
+const letterOf = (idx) => String.fromCharCode(65 + idx)
+
+function correctLetters(item) {
+  if (!item.correctAnswer) return []
+  return String(item.correctAnswer).split(',').map(s => s.trim().toUpperCase()).filter(Boolean)
+}
+
+const isChoiceCorrect = (item, idx) => correctLetters(item).includes(letterOf(idx))
+
+function normalizeJudgeAnswer(value) {
+  const v = String(value || '').trim().toUpperCase()
+  if (v === 'TRUE' || v === 'T' || v === '正确') return 'TRUE'
+  if (v === 'FALSE' || v === 'F' || v === '错误') return 'FALSE'
+  return v
+}
+
+const isTrueAnswer = (item) => normalizeJudgeAnswer(item.correctAnswer) === 'TRUE'
+
+/** 单选/多选点击选项：记录本次作答并实时校验 */
+function selectChoice(item, idx) {
+  const st = retryOf(item)
+  const letter = letterOf(idx)
+  if (item.multi) {
+    const answers = st.answer ? st.answer.split(',') : []
+    const pos = answers.indexOf(letter)
+    if (pos > -1) {
+      answers.splice(pos, 1)
+    } else {
+      answers.push(letter)
+    }
+    answers.sort()
+    st.answer = answers.join(',')
+  } else {
+    st.answer = letter
+  }
+  st.answered = true
+  st.correct = isRetryCorrect(item)
+}
+
+function handleJudgeAnswer(item) {
+  const st = retryOf(item)
+  st.answered = true
+  st.correct = isRetryCorrect(item)
+}
+
+function isRetryCorrect(item) {
+  const st = retryOf(item)
+  if (item.type === 'JUDGE') {
+    return normalizeJudgeAnswer(st.answer) === normalizeJudgeAnswer(item.correctAnswer)
+  }
+  const correct = correctLetters(item)
+  const user = st.answer ? st.answer.split(',') : []
+  if (item.multi) {
+    return correct.length === user.length && correct.every(letter => user.includes(letter))
+  }
+  return user.length === 1 && correct.includes(user[0])
+}
+
+/** 判断题/选择题作答后实时展示对错反馈；简答题不自动判分 */
+const feedbackVisible = (item) =>
+  item.type !== 'TEXT' && retryOf(item).answered
+
+/** 用户本次作答的展示（与刷题一致：选择题显示选项标号） */
+function formatRetryAnswer(item) {
+  const st = retryOf(item)
+  if (!st.answer) return ''
+  if (item.type === 'JUDGE') {
+    return normalizeJudgeAnswer(st.answer) === 'TRUE' ? '正确' : '错误'
+  }
+  return item.multi ? st.answer.split(',').join('、') : st.answer
+}
+
+/** 选项样式：本次选错标红、正确项标绿对比；未重新作答时保留历史错误标记 */
+function choiceClass(item, idx) {
+  const letter = letterOf(idx)
+  const st = retryOf(item)
+  const correct = isChoiceCorrect(item, idx)
+  if (st.answered) {
+    const picked = st.answer ? st.answer.split(',').includes(letter) : false
+    if (picked && correct) return 'choice-correct-user'
+    if (picked && !correct) return 'choice-wrong'
+    if (correct) return 'choice-correct'
+    return ''
+  }
+  if (revealedIds.value.has(item.id) && correct) return 'choice-correct'
+  if (showHistoryWrong(item, idx)) return 'choice-history-wrong'
+  return ''
+}
+
+const showCorrectMark = (item, idx) =>
+  isChoiceCorrect(item, idx) && (retryOf(item).answered || revealedIds.value.has(item.id))
+
+/** 历史作答（上次考试判卷结果）为错误选项时标红，展示"上次选错" */
+function showHistoryWrong(item, idx) {
+  if (!item.userAnswer) return false
+  const letters = String(item.userAnswer).split(',').map(s => s.trim().toUpperCase()).filter(Boolean)
+  const letter = letterOf(idx)
+  return letters.includes(letter) && !isChoiceCorrect(item, idx)
+}
+
+function toggleAnswer(item) {
+  const next = new Set(revealedIds.value)
+  if (next.has(item.id)) {
+    next.delete(item.id)
+  } else {
+    next.add(item.id)
+  }
+  revealedIds.value = next
+}
+
+// ------- AI 解析（统一计费） -------
+
+async function handleAiAnalysis(item) {
+  const s = aiState(item.id)
+  if (s.loading) return
+  s.loading = true
+  try {
+    const res = await aiAnalyzeWrongQuestion(item.id)
+    s.result = res.data.analysis
+    s.free = res.data.free
+    s.remainingFree = res.data.remainingFree
+    s.credits = res.data.activeCredits
+  } catch (error) {
+    if (error.message && error.message.includes('积分不足')) {
+      ElMessageBox.confirm(
+        '积分不足，每次 AI 解析需 5 积分。购买邀请码即可获得积分，是否现在去购买？',
+        '积分不足',
+        { confirmButtonText: '去购买', cancelButtonText: '取消', type: 'warning' }
+      )
+        .then(() => router.push('/pay'))
+        .catch(() => {})
+    }
+  } finally {
+    s.loading = false
+  }
+}
+
 // ------- 掌握状态操作 -------
 
 async function handleToggleMaster(item) {
@@ -334,41 +579,7 @@ async function handleRemove(item) {
   }
 }
 
-// ------- 展示辅助 -------
-
-const letterOf = (idx) => String.fromCharCode(65 + idx)
-
-function correctLetters(item) {
-  if (!item.correctAnswer) return []
-  return String(item.correctAnswer).split(',').map(s => s.trim().toUpperCase()).filter(Boolean)
-}
-
-function userLetters(item) {
-  if (!item.userAnswer) return []
-  return String(item.userAnswer).split(',').map(s => s.trim().toUpperCase()).filter(Boolean)
-}
-
-const isChoiceCorrect = (item, idx) => correctLetters(item).includes(letterOf(idx))
-const isUserChoice = (item, idx) => userLetters(item).includes(letterOf(idx))
-
-function choiceClass(item, idx) {
-  const correct = isChoiceCorrect(item, idx)
-  const user = isUserChoice(item, idx)
-  if (correct && user) return 'choice-correct-user'
-  if (correct) return 'choice-correct'
-  if (user) return 'choice-wrong'
-  return ''
-}
-
-function displayAnswer(answer, type) {
-  if (!answer) return ''
-  if (type === 'JUDGE') {
-    const v = String(answer).toUpperCase()
-    if (v === 'TRUE' || v === 'T') return '正确'
-    if (v === 'FALSE' || v === 'F') return '错误'
-  }
-  return answer
-}
+// ------- 掌握度展示 -------
 
 const masteryPercent = (item) =>
   Math.min(100, Math.round(((item.correctStreak || 0) / MASTER_STREAK) * 100))
@@ -670,39 +881,41 @@ onMounted(() => {
   border-top: 1px dashed #ebeef5;
 }
 
-.choices {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 14px;
+/* 选择题选项（对齐刷题模块交互样式） */
+.question-choices {
+  margin-bottom: 16px;
 }
 
 .choice-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 9px 14px;
-  border: 1px solid #ebeef5;
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  background: #f8f9fa;
+  border: 1px solid transparent;
   border-radius: 8px;
-  font-size: 14px;
-  color: #606266;
-  transition: border-color 0.2s ease;
+  cursor: pointer;
+  transition: all 0.3s ease;
 }
 
-.choice-item.choice-correct,
-.choice-item.choice-correct-user {
-  border-color: #b3e19d;
-  background: #f0f9eb;
+.choice-item:hover {
+  background: #e6f7ff;
+  border-color: #409eff;
 }
 
-.choice-item.choice-wrong {
-  border-color: #fab6b6;
-  background: #fef0f0;
-}
-
-.choice-letter {
-  font-weight: 600;
-  color: #303133;
+.choice-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: #409eff;
+  color: #fff;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: bold;
+  margin-right: 12px;
+  flex-shrink: 0;
 }
 
 .choice-content {
@@ -710,46 +923,156 @@ onMounted(() => {
   word-break: break-all;
 }
 
-.answer-compare {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-bottom: 12px;
+.choice-item.choice-correct,
+.choice-item.choice-correct-user {
+  background: #f6ffed;
+  border-color: #52c41a;
 }
 
-.answer-block {
-  padding: 10px 16px;
-  border-radius: 10px;
+.choice-item.choice-correct .choice-label,
+.choice-item.choice-correct-user .choice-label {
+  background: #52c41a;
 }
 
-.answer-block.user-answer {
-  background: #fef0f0;
+.choice-item.choice-wrong,
+.choice-item.choice-history-wrong {
+  background: #fff1f0;
+  border-color: #ff4d4f;
 }
 
-.answer-block.correct-answer {
-  background: #f0f9eb;
+.choice-item.choice-wrong .choice-label,
+.choice-item.choice-history-wrong .choice-label {
+  background: #ff4d4f;
 }
 
-.answer-label {
-  display: block;
+.history-tag {
+  flex-shrink: 0;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 6px;
   font-size: 12px;
-  color: #909399;
-  margin-bottom: 4px;
-}
-
-.answer-value {
-  font-size: 15px;
-  font-weight: 600;
-  color: #303133;
-  word-break: break-all;
-}
-
-.user-answer .answer-value {
   color: #f56c6c;
+  background: #fff;
+  border: 1px solid #ffccc7;
 }
 
-.correct-answer .answer-value {
+.correct-icon {
+  color: #52c41a;
+  font-size: 18px;
+  margin-left: 8px;
+}
+
+/* 判断题 / 简答题 */
+.judge-options {
+  margin-bottom: 16px;
+}
+
+.text-answer {
+  margin-bottom: 16px;
+}
+
+/* 实时校验反馈 */
+.feedback-section {
+  margin-bottom: 16px;
+}
+
+/* 操作行 */
+.detail-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.btn-text {
+  margin-left: 4px;
+}
+
+.ai-tip {
+  font-size: 12px;
+  color: #e6a23c;
+}
+
+.ai-tip.is-free {
   color: #67c23a;
+}
+
+/* 答案区（与刷题模块格式一致） */
+.answer-section {
+  background: #f0f9ff;
+  border: 1px solid #b3d8ff;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.answer-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-weight: 600;
+  color: #1890ff;
+}
+
+.answer-content {
+  margin-bottom: 16px;
+}
+
+.correct-answer {
+  color: #52c41a;
+  font-weight: 600;
+}
+
+.text-answer-content {
+  background: #fff;
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid #d9d9d9;
+  white-space: pre-wrap;
+}
+
+.analysis-section {
+  border-top: 1px solid #d9d9d9;
+  padding-top: 16px;
+}
+
+.analysis-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #722ed1;
+}
+
+.analysis-content {
+  color: #666;
+  line-height: 1.6;
+}
+
+/* AI 解析结果 */
+.ai-analysis-row {
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: #fdf6ec;
+  border: 1px solid #f5dab1;
+  margin-bottom: 16px;
+  line-height: 1.7;
+}
+
+.ai-analysis-label {
+  font-weight: 600;
+  color: #e6a23c;
+  flex-shrink: 0;
+}
+
+.ai-analysis-text {
+  font-size: 14px;
+  color: #606266;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 
 /* 掌握进度 */
@@ -781,42 +1104,6 @@ onMounted(() => {
 .mastery-bar {
   flex: 1;
   min-width: 80px;
-}
-
-/* 解析 / AI 批改 */
-.note-block {
-  display: flex;
-  gap: 10px;
-  padding: 10px 14px;
-  border-radius: 10px;
-  background: #f7f8fa;
-  margin-bottom: 10px;
-  line-height: 1.6;
-}
-
-.note-label {
-  flex-shrink: 0;
-  align-self: flex-start;
-  padding: 1px 8px;
-  border-radius: 6px;
-  font-size: 12px;
-  color: #7952b3;
-  background: rgba(121, 82, 179, 0.1);
-}
-
-.ai-label {
-  color: #409eff;
-  background: rgba(64, 158, 255, 0.12);
-}
-
-.ai-correction {
-  background: #f0f7ff;
-}
-
-.note-content {
-  font-size: 14px;
-  color: #606266;
-  word-break: break-all;
 }
 
 /* 底部操作行 */
@@ -867,10 +1154,6 @@ onMounted(() => {
   .item-head {
     flex-direction: column;
     gap: 10px;
-  }
-
-  .answer-compare {
-    grid-template-columns: 1fr;
   }
 
   .detail-footer {

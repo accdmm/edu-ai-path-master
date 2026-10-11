@@ -36,3 +36,11 @@ export function removeWrongQuestion(id) {
     method: 'delete'
   })
 }
+
+// AI 解析错题（统一 AI 解析计费：每日 3 次免费，超出每次扣 5 积分）
+export function aiAnalyzeWrongQuestion(id) {
+  return request({
+    url: `/api/wrong-questions/${id}/ai-analysis`,
+    method: 'post'
+  })
+}

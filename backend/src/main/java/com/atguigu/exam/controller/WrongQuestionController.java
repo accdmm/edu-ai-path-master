@@ -20,6 +20,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Map;
+
 /**
  * 错题本控制器 - 错题列表查询、知识点维度统计、掌握状态管理与移除
  * 需登录（SecurityConfig 已收紧 /api/wrong-questions/**）
@@ -78,5 +80,14 @@ public class WrongQuestionController {
         }
         wrongQuestionService.removeWrongQuestion(userContextUtil.getUserId(), id);
         return Result.success(null);
+    }
+
+    @PostMapping("/{id}/ai-analysis")
+    @Operation(summary = "AI解析错题", description = "AI 讲解错题考点、解题步骤与易错点；每日 3 次免费，超出每次扣 5 积分（与刷题/真题解析共用额度）")
+    public Result<Map<String, Object>> aiAnalysis(@Parameter(description = "错题记录ID") @PathVariable Long id) {
+        if (!userContextUtil.isAuthenticated()) {
+            return Result.error(401, "未登录");
+        }
+        return wrongQuestionService.aiAnalysis(userContextUtil.getUserId(), id);
     }
 }
