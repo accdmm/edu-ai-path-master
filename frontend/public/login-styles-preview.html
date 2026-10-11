@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>登录页风格参考 · 可视化预览（5 套通用 + 1 套本项目推荐）</title>
+<style>
+  :root {
+    --ink: #0f172a; --muted: #64748b; --line: #e2e8f0;
+    --focus: #409eff;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+    --serif: "Noto Serif SC", "Source Han Serif SC", "Songti SC", STSong, SimSun, serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.65 var(--sans); color: var(--ink); background: #f8fafc; }
+  a { color: inherit; }
+
+  /* ---------- 顶栏 ---------- */
+  .topbar { position: sticky; top: 0; z-index: 10; background: rgba(255,255,255,.94);
+    backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+  .topbar-inner { max-width: 1180px; margin: 0 auto; padding: 14px 20px 10px; }
+  .topbar h1 { margin: 0 0 10px; font-size: 18px; letter-spacing: .02em; }
+  .topbar h1 small { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 8px; }
+  nav { display: flex; flex-wrap: wrap; gap: 8px; }
+  nav a { text-decoration: none; font-size: 13px; padding: 5px 12px; border-radius: 999px;
+    border: 1px solid var(--line); background: #fff; color: #334155; }
+  nav a:hover { border-color: #94a3b8; }
+  nav a.rec { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; font-weight: 600; }
+
+  main { max-width: 1180px; margin: 0 auto; padding: 24px 20px 60px; }
+
+  /* ---------- 引言 ---------- */
+  .intro { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; margin-bottom: 26px; }
+  .intro h2 { margin: 0 0 8px; font-size: 15px; }
+  .intro p { margin: 4px 0; color: #475569; font-size: 13px; }
+  .intro code { background: #f1f5f9; border-radius: 4px; padding: 1px 6px; font-size: 12px; }
+
+  /* ---------- 方案区块 ---------- */
+  .scheme { margin-bottom: 40px; }
+  .scheme-head h2 { margin: 0 0 6px; font-size: 17px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .num { font-size: 12px; color: #1d4ed8; background: #eff6ff; border: 1px solid #bfdbfe;
+    border-radius: 6px; padding: 2px 8px; }
+  .badge-rec { font-size: 12px; color: #b45309; background: #fffbeb; border: 1px solid #fde68a;
+    border-radius: 6px; padding: 2px 8px; }
+  .meta { margin: 0 0 12px; color: var(--muted); font-size: 13px; }
+  .tag { display: inline-block; font-size: 12px; color: #475569; background: #f1f5f9;
+    border-radius: 999px; padding: 1px 9px; margin-right: 4px; }
+
+  /* ---------- 预览舞台（含假浏览器窗） ---------- */
+  .stage { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: #fff;
+    box-shadow: 0 10px 30px rgba(15,23,42,.06); }
+  .chrome { display: flex; align-items: center; gap: 6px; padding: 9px 14px; background: #f1f5f9;
+    border-bottom: 1px solid var(--line); }
+  .chrome i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; background: #e2e8f0; }
+  .chrome i:nth-child(1) { background: #fda4af; } .chrome i:nth-child(2) { background: #fcd34d; }
+  .chrome i:nth-child(3) { background: #86efac; }
+  .chrome .url { margin-left: 10px; font-size: 12px; color: #64748b; background: #fff;
+    border: 1px solid var(--line); border-radius: 999px; padding: 2px 12px; }
+
+  .mock { height: 540px; display: grid; position: relative; overflow: hidden; }
+  .mock, .mock * { font-family: var(--sans); }
+  .mock input { width: 100%; height: 44px; border-radius: 8px; border: 1px solid #dbe3ee;
+    padding: 0 12px; font-size: 14px; background: #fff; color: var(--ink); outline: none; }
+  .mock input::placeholder { color: #94a3b8; }
+  .mock input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .mock .btn { width: 100%; height: 44px; border: 0; border-radius: 8px; font-size: 15px;
+    color: #fff; cursor: pointer; }
+  .mock .btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .mock .links { display: flex; justify-content: space-between; margin-top: 16px; font-size: 13px; }
+  .mock .links a { color: var(--focus); text-decoration: none; }
+  .logo-badge { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center;
+    background: linear-gradient(135deg, #4285f4, #667eea); color: #fff; font-weight: 700; font-size: 15px;
+    border: 2px solid rgba(255,255,255,.65); box-shadow: 0 2px 10px rgba(66,133,244,.35); }
+
+  /* ---------- 规格条 ---------- */
+  .spec { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 12px; }
+  .spec > div { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .spec h4 { margin: 0 0 6px; font-size: 12px; color: var(--muted); font-weight: 600; letter-spacing: .04em; }
+  .spec p { margin: 0; font-size: 12.5px; color: #334155; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: #475569; }
+  .chip b { width: 14px; height: 14px; border-radius: 4px; border: 1px solid rgba(0,0,0,.08); }
+
+  /* ================= 方案 6 · 蓝白卷面（本项目推荐） ================= */
+  .m-edu { grid-template-columns: 5fr 7fr; background: #f5f7fa; }
+  .m-edu .brand { position: relative; display: grid; place-items: center; padding: 40px;
+    background-color: #f0f6ff;
+    background-image: linear-gradient(rgba(64,158,255,.06) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(64,158,255,.06) 1px, transparent 1px);
+    background-size: 24px 24px; border-right: 1px solid #ebeef5; }
+  .m-edu .brand::after { content: '密封线内不要答题'; position: absolute; right: 16px; top: 50%;
+    transform: translateY(-50%); writing-mode: vertical-rl; letter-spacing: .4em;
+    color: rgba(64,158,255,.35); font-size: 12px; }
+  .m-edu .brand h3 { font-family: var(--serif); font-size: 28px; margin: 14px 0 6px; color: #303133; }
+  .m-edu .brand .slogan { color: #606266; margin: 0 0 14px; font-size: 13px; }
+  .m-edu .brand ul { margin: 0; padding-left: 18px; color: #606266; font-size: 13px; }
+  .m-edu .brand li { line-height: 2; }
+  .m-edu .panel { display: grid; place-items: center; padding: 24px; }
+  .m-edu .paper { width: 360px; background: #fff; border: 1px solid #ebeef5; border-radius: 10px;
+    padding: 28px 26px; box-shadow: 0 6px 24px rgba(64,158,255,.08); }
+  .m-edu .paper-head { display: flex; justify-content: space-between; align-items: center;
+    font-family: var(--serif); font-size: 18px; color: #303133; padding-bottom: 10px; margin-bottom: 18px;
+    border-bottom: 2px solid #409eff; box-shadow: 0 3px 0 -1px #409eff; }
+  .m-edu .stamp { font-size: 11px; letter-spacing: .2em; color: #409eff; border: 1px solid #409eff;
+    padding: 2px 7px; border-radius: 4px; }
+  .m-edu .field { display: block; margin-bottom: 16px; }
+  .m-edu .field span { display: block; font-size: 13px; color: #606266; margin-bottom: 6px; }
+  .m-edu .btn { background: #409eff; }
+  .m-edu .btn:hover { background: #66b1ff; }
+  .m-edu .links a { color: #409eff; }
+
+  /* ================= 方案 1 · 栅格秩序 · 蓝灰专业（B端） ================= */
+  .m-b2b { grid-template-columns: 5fr 7fr; background: #f2f4f7; }
+  .m-b2b .brand { background: linear-gradient(160deg, #16233a, #1f3554); color: #e2e8f0;
+    padding: 44px 40px; display: flex; flex-direction: column; justify-content: center; gap: 10px; }
+  .m-b2b .brand h3 { margin: 0; font-size: 22px; letter-spacing: .02em; }
+  .m-b2b .brand p { margin: 0; color: #94a3b8; font-size: 13px; }
+  .m-b2b .brand ul { margin: 8px 0 0; padding-left: 18px; color: #cbd5e1; font-size: 13px; }
+  .m-b2b .brand li { line-height: 2; }
+  .m-b2b .panel { display: grid; place-items: center; }
+  .m-b2b .card { width: 360px; background: #fff; border: 1px solid #e5e6eb; border-radius: 8px; padding: 30px 28px; }
+  .m-b2b .card h4 { margin: 0 0 4px; font-size: 18px; }
+  .m-b2b .card .sub { margin: 0 0 18px; color: #86909c; font-size: 12.5px; }
+  .m-b2b input { height: 40px; border-radius: 6px; border-color: #dcdfe6; }
+  .m-b2b .btn { background: #2f6bff; height: 40px; border-radius: 6px; font-size: 14px; }
+  .m-b2b .btn:hover { background: #1f5ae0; }
+  .m-b2b .row { display: flex; justify-content: space-between; align-items: center; margin: 2px 0 14px;
+    font-size: 12.5px; color: #4e5969; }
+  .m-b2b .row a { color: #2f6bff; text-decoration: none; }
+  .m-b2b .sso { margin-top: 16px; padding-top: 14px; border-top: 1px dashed #e5e6eb; display: flex;
+    gap: 10px; font-size: 12.5px; color: #4e5969; }
+  .m-b2b .sso span { border: 1px solid #e5e6eb; border-radius: 6px; padding: 5px 12px; }
+
+  /* ================= 方案 2 · 氛围渐变 · 情感化居中卡（C端） ================= */
+  .m-c { place-items: center;
+    background: radial-gradient(1100px 520px at 12% 8%, rgba(255,122,89,.40), transparent 62%),
+                radial-gradient(900px 480px at 88% 90%, rgba(124,58,237,.32), transparent 62%), #fff7f5; }
+  .m-c .card { width: 372px; border-radius: 20px; padding: 30px 28px;
+    background: rgba(255,255,255,.88); backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,.9); box-shadow: 0 18px 50px rgba(255,61,113,.14); }
+  .m-c .card h4 { margin: 0 0 4px; font-size: 20px; }
+  .m-c .card .sub { margin: 0 0 20px; color: #6b7280; font-size: 13px; }
+  .m-c input { height: 48px; border-radius: 12px; border: 0; background: #f3f4f6; }
+  .m-c .dual { display: grid; grid-template-columns: 1fr 118px; gap: 10px; }
+  .m-c .dual .code { background: #fff; border: 1px solid #e5e7eb; color: #374151; border-radius: 12px; cursor: pointer; }
+  .m-c .btn { height: 48px; border-radius: 24px; margin-top: 6px;
+    background: linear-gradient(135deg, #ff7a59, #ff3d71); font-size: 16px; }
+  .m-c .agree { display: flex; gap: 8px; align-items: flex-start; margin-top: 12px; color: #6b7280; font-size: 12px; }
+  .m-c .third { display: flex; justify-content: center; gap: 14px; margin-top: 18px; }
+  .m-c .third span { width: 40px; height: 40px; border-radius: 50%; background: #fff; display: grid;
+    place-items: center; font-size: 12px; color: #4b5563; box-shadow: 0 4px 14px rgba(0,0,0,.06); }
+
+  /* ================= 方案 3 · 极简无干扰 · 单列聚焦（工具类） ================= */
+  .m-tool { place-items: center; background: #fff; }
+  .m-tool .col { width: 320px; }
+  .m-tool .col .logo-line { display: flex; align-items: center; gap: 8px; margin-bottom: 22px; font-weight: 600; }
+  .m-tool .col .logo-line i { width: 12px; height: 12px; border-radius: 3px; background: #111827; display: inline-block; }
+  .m-tool label { display: block; margin-bottom: 12px; font-size: 12.5px; color: #6b7280; }
+  .m-tool input { height: 40px; border-radius: 8px; border-color: #d1d5db; margin-top: 4px; }
+  .m-tool input:focus-visible { outline-color: #2563eb; }
+  .m-tool .btn { background: #111827; height: 40px; border-radius: 8px; font-size: 14px; margin-top: 4px; }
+  .m-tool .hint { margin-top: 10px; color: #9ca3af; font-size: 12px; }
+  .m-tool .hint kbd { background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 4px;
+    padding: 1px 5px; font-family: ui-monospace, Consolas, monospace; font-size: 11px; }
+  .m-tool .oauth { margin-top: 20px; padding-top: 14px; border-top: 1px solid #f3f4f6; display: flex; gap: 8px; }
+  .m-tool .oauth span { flex: 1; text-align: center; border: 1px solid #d1d5db; border-radius: 8px;
+    padding: 7px 0; font-size: 12.5px; color: #374151; }
+
+  /* ================= 方案 4 · 内容为先 · 双栏叙事（内容社区） ================= */
+  .m-com { grid-template-columns: 1.15fr 1fr; background: #fffdf8; }
+  .m-com .feed { padding: 34px 30px; display: flex; flex-direction: column; gap: 12px; }
+  .m-com .feed .head { font-weight: 700; font-size: 15px; margin-bottom: 2px; }
+  .m-com .post { background: #fff; border: 1px solid #f1ead9; border-radius: 12px; padding: 14px 16px; }
+  .m-com .post .t { font-weight: 600; font-size: 13.5px; margin-bottom: 4px; }
+  .m-com .post .d { color: #6b7280; font-size: 12px; }
+  .m-com .post .tags { margin-top: 8px; }
+  .m-com .post .tags span { font-size: 11px; border-radius: 999px; padding: 1px 8px; margin-right: 6px; }
+  .m-com .t1 { background: #fef3c7; color: #92400e; } .m-com .t2 { background: #dbeafe; color: #1e40af; }
+  .m-com .t3 { background: #dcfce7; color: #166534; }
+  .m-com .panel { display: grid; place-items: center; padding: 24px; }
+  .m-com .card { width: 340px; background: #fff; border-radius: 12px; padding: 28px 26px;
+    border: 1px solid #f1ead9; box-shadow: 0 10px 30px rgba(31,41,55,.06); }
+  .m-com .card h4 { margin: 0 0 4px; font-size: 18px; }
+  .m-com .card .sub { margin: 0 0 16px; color: #6b7280; font-size: 12.5px; }
+  .m-com .stat { background: #fff7ed; color: #b45309; border-radius: 8px; padding: 7px 10px;
+    font-size: 12px; margin-bottom: 16px; }
+  .m-com input { height: 44px; border-radius: 10px; }
+  .m-com .btn { background: #ff6154; border-radius: 10px; }
+  .m-com .links a { color: #ff6154; }
+
+  /* ================= 方案 5 · 稳重可信 · 深蓝高对比（金融） ================= */
+  .m-fin { place-items: center; background: #0b1f3a; }
+  .m-fin .wrap { width: 380px; }
+  .m-fin .card { background: #fff; border-radius: 8px; padding: 30px 28px; border: 1px solid #e2e8f0; }
+  .m-fin .card h4 { margin: 0 0 4px; font-size: 18px; color: #0f172a; }
+  .m-fin .card .sub { margin: 0 0 18px; color: #64748b; font-size: 12.5px; }
+  .m-fin input { height: 44px; border-color: #cbd5e1; }
+  .m-fin .mono { font-family: ui-monospace, Consolas, monospace; }
+  .m-fin .dual { display: grid; grid-template-columns: 1fr 112px; gap: 10px; }
+  .m-fin .dual .code { background: #f8fafc; border: 1px solid #e2e8f0; color: #334155;
+    border-radius: 8px; font-size: 12.5px; cursor: pointer; }
+  .m-fin .btn { background: #1e3a8a; margin-top: 4px; }
+  .m-fin .secure { margin-top: 12px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.14);
+    border-radius: 8px; padding: 10px 12px; color: #cbd5e1; font-size: 12px; line-height: 1.7; }
+  .m-fin .secure b { color: #93c5fd; font-weight: 600; }
+
+  /* ================= 现状（改造前） ================= */
+  .m-now { place-items: center; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); }
+  .m-now .box { width: 372px; padding: 32px 30px; background: rgba(255,255,255,.05);
+    backdrop-filter: blur(10px); border-radius: 20px; border: 1px solid rgba(255,255,255,.1);
+    box-shadow: 0 8px 32px rgba(0,0,0,.3); }
+  .m-now h4 { text-align: center; color: #4fc3f7; font-size: 22px; margin: 0 0 6px; }
+  .m-now .sub { text-align: center; color: #999; font-size: 13px; margin: 0 0 22px; }
+  .m-now input { background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1);
+    color: #fff; border-radius: 8px; }
+  .m-now input::placeholder { color: #666; }
+  .m-now .btn { background: linear-gradient(135deg, #667eea, #764ba2); height: 46px; }
+  .m-now .links a { color: #4fc3f7; }
+  .m-now .note { margin-top: 14px; text-align: center; color: #64748b; font-size: 11.5px; }
+
+  footer { border-top: 1px solid var(--line); background: #fff; }
+  footer .inner { max-width: 1180px; margin: 0 auto; padding: 18px 20px; color: var(--muted); font-size: 12.5px; }
+
+  @media (max-width: 900px) {
+    .spec { grid-template-columns: repeat(2, 1fr); }
+    .mock { height: auto; min-height: 480px; grid-template-columns: 1fr !important; }
+    .m-edu .brand, .m-b2b .brand, .m-com .feed { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <h1>登录页风格参考 · 可视化预览 <small>5 套通用风格 + 1 套本项目推荐 · 配套 PLAN-登录页风格选型.md</small></h1>
+    <nav>
+      <a class="rec" href="#s6">方案 6 · 蓝白卷面（本项目推荐）</a>
+      <a href="#s1">1 · 蓝灰专业（B端）</a>
+      <a href="#s2">2 · 氛围渐变（C端）</a>
+      <a href="#s3">3 · 极简单列（工具）</a>
+      <a href="#s4">4 · 双栏叙事（社区）</a>
+      <a href="#s5">5 · 深蓝高对比（金融）</a>
+      <a href="#now">现状对比（改造前）</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="intro">
+    <h2>怎么看这一页</h2>
+    <p>· 顶部导航可跳到任意方案；<b>输入框可直接聚焦</b>，体验各方案的焦点态（均带 2px 可见焦点环，符合 WCAG 非文本对比度要求）。</p>
+    <p>· 每个方案下方是「规格条」：定位 / 配色（色卡）/ 布局 / 组件与可访问性要点；完整文字说明见 <code>PLAN-登录页风格选型.md</code>。</p>
+    <p>· 本页为静态视觉参考，不含真实登录逻辑；所有装饰均为纯 CSS，无任何图片或外部资源依赖。</p>
+  </div>
+
+  <!-- ============ 方案 6（推荐） ============ -->
+  <section class="scheme" id="s6">
+    <div class="scheme-head">
+      <h2><span class="num">方案 6</span> 蓝白卷面 · 轻学术 <span class="badge-rec">本项目推荐</span></h2>
+      <p class="meta">教育 / 考试类 · <span class="tag">#教育</span> <span class="tag">#轻学术</span> <span class="tag">#蓝白</span> <span class="tag">#去emoji</span> <span class="tag">#与全站一致</span></p>
+    </div>
+    <div class="stage">
+      <div class="chrome"><i></i><i></i><i></i><span class="url">localhost:3001/login</span></div>
+      <div class="mock m-edu">
+        <div class="brand">
+          <div style="text-align:center">
+            <div class="logo-badge" style="margin:0 auto">AI</div>
+            <h3>智能学习平台</h3>
+            <p class="slogan">从刷题到上岸，AI 陪你走完整个学习路径</p>
+            <ul>
+              <li>AI 学习路径 · 按薄弱点规划</li>
+              <li>企业真题 · 一线大厂实战</li>
+              <li>AI 面试官 · 模拟真实面试</li>
+            </ul>
+          </div>
+        </div>
+        <div class="panel">
+          <form class="paper" onsubmit="return false">
+            <div class="paper-head"><span>用户登录</span><span class="stamp">LOGIN</span></div>
+            <label class="field"><span>用户名</span><input type="text" placeholder="请输入用户名" autocomplete="username"></label>
+            <label class="field"><span>密码</span><input type="password" placeholder="请输入密码" autocomplete="current-password"></label>
+            <button class="btn" type="submit">登 录</button>
+            <div class="links"><a href="#s6">没有账号？立即注册</a><a href="#s6">返回首页</a></div>
+          </form>
+        </div>
+      </div>
+    </div>
+    <div class="spec">
+      <div><h4>核心定位</h4><p>与全站「蓝白考卷」语言同源：学习/考试的秩序感 + 轻盈现代，去掉 emoji 与深色玻璃拟态。</p></div>
+      <div><h4>配色方案</h4><div class="chips">
+        <span class="chip"><b style="background:#409eff"></b>#409EFF 主色</span>
+        <span class="chip"><b style="background:#f5f7fa;border-color:#e2e8f0"></b>#F5F7FA 底</span>
+        <span class="chip"><b style="background:#303133"></b>#303133 文本</span>
+        <span class="chip"><b style="background:#2f6bdf"></b>#2F6BDF 考卷蓝</span>
+      </div></div>
+      <div><h4>布局结构</h4><p>桌面 5:7 分栏：左品牌区（浅蓝格纹 + 竖排密封线）+ 右「考卷纸」登录卡（蓝色双线卷头）。移动端单列。</p></div>
+      <div><h4>组件与可访问性</h4><p>输入 44px/圆角 8/2px 焦点环；真实 label；button 回车提交；错误 aria-live；标题用衬线系统栈，无外部字体。</p></div>
+    </div>
+  </section>
+
+  <!-- ============ 方案 1 ============ -->
+  <section class="scheme" id="s1">
+    <div class="scheme-head">
+      <h2><span class="num">方案 1</span> 栅格秩序 · 蓝灰专业</h2>
+      <p class="meta">B端企业管理系统 · <span class="tag">#B端</span> <span class="tag">#后台管理</span> <span class="tag">#可信</span> <span class="tag">#克制</span></p>
+    </div>
+    <div class="stage">
+      <div class="chrome"><i></i><i></i><i></i><span class="url">admin.example.com/login</span></div>
+      <div class="mock m-b2b">
+        <div class="brand">
+          <h3>XX 企业工作台</h3>
+          <p>统一账号登录 · 支持企业 SSO</p>
+          <ul>
+            <li>多租户与权限体系</li>
+            <li>操作审计与合规留痕</li>
+            <li>7×24 企业级支持</li>
+          </ul>
+        </div>
+        <div class="panel">
+          <form class="card" onsubmit="return false">
+            <h4>账号登录</h4>
+            <p class="sub">请使用企业邮箱或工号登录</p>
+            <label class="field"><input type="text" placeholder="企业邮箱 / 工号" autocomplete="username" style="margin-bottom:12px"></label>
+            <label class="field"><input type="password" placeholder="密码" autocomplete="current-password" style="margin-bottom:12px"></label>
+            <div class="row"><label style="display:flex;gap:6px;align-items:center"><input type="checkbox" style="width:auto;height:auto">记住我</label><a href="#s1">忘记密码？</a></div>
+            <button class="btn" type="submit">登 录</button>
+            <div class="sso"><span>钉钉</span><span>企业微信</span><span>SSO 单点登录</span></div>
+          </form>
+        </div>
+      </div>
+    </div>
+    <div class="spec">
+      <div><h4>核心定位</h4><p>克制、秩序、可信：信息清晰优先于装饰，为「每天都要用」的工作台服务。</p></div>
+      <div><h4>配色方案</h4><div class="chips">
+        <span class="chip"><b style="background:#2f6bff"></b>#2F6BFF 主色</span>
+        <span class="chip"><b style="background:#f2f4f7;border-color:#e2e8f0"></b>#F2F4F7 底</span>
+        <span class="chip"><b style="background:#1d2129"></b>#1D2129 文本</span>
+        <span class="chip"><b style="background:#e5e6eb"></b>#E5E6EB 边框</span>
+      </div></div>
+      <div><h4>布局结构</h4><p>左 5 右 7：左侧深灰蓝品牌/价值点区，右侧白卡 360–400px 居中；移动端单列。</p></div>
+      <div><h4>组件与可访问性</h4><p>输入 40px/圆角 6；记住我与 SSO 入口；错误行内提示 + role=alert；焦点环 3:1 对比。</p></div>
+    </div>
+  </section>
+
+  <!-- ============ 方案 2 ============ -->
+  <section class="scheme" id="s2">
+    <div class="scheme-head">
+      <h2><span class="num">方案 2</span> 氛围渐变 · 情感化居中卡</h2>
+      <p class="meta">C端消费类产品 · <span class="tag">#C端</span> <span class="tag">#增长</span> <span class="tag">#一键登录</span> <span class="tag">#移动优先</span></p>
+    </div>
+    <div class="stage">
+      <div class="chrome"><i></i><i></i><i></i><span class="url">app.example.com/signin</span></div>
+      <div class="mock m-c">
+        <form class="card" onsubmit="return false">
+          <h4>欢迎回来</h4>
+          <p class="sub">手机号一键登录，未注册将自动创建账号</p>
+          <div class="dual" style="margin-bottom:12px">
+            <input type="tel" placeholder="手机号" autocomplete="tel">
+            <button class="code" type="button">获取验证码</button>
+          </div>
+          <button class="btn" type="submit">登录 / 注册</button>
+          <label class="agree"><input type="checkbox" style="width:auto;height:auto">我已阅读并同意《用户协议》与《隐私政策》</label>
+          <div class="third"><span>微信</span><span>Apple</span><span>QQ</span></div>
+        </form>
+      </div>
+    </div>
+    <div class="spec">
+      <div><h4>核心定位</h4><p>轻松、有情绪、强 CTA：降低首次进入门槛，把登录变成自然动作。</p></div>
+      <div><h4>配色方案</h4><div class="chips">
+        <span class="chip"><b style="background:linear-gradient(135deg,#ff7a59,#ff3d71)"></b>品牌渐变</span>
+        <span class="chip"><b style="background:#fff7f5;border-color:#e2e8f0"></b>#FFF7F5 底</span>
+        <span class="chip"><b style="background:#111827"></b>#111827 文本</span>
+      </div></div>
+      <div><h4>布局结构</h4><p>全屏柔光渐变 + 居中卡（380–420px）；移动端表单贴底、按钮全宽。</p></div>
+      <div><h4>组件与可访问性</h4><p>输入 48px/圆角 12；验证码按钮；协议勾选为必选（未勾选禁用提交）；第三方登录圆形图标。</p></div>
+    </div>
+  </section>
+
+  <!-- ============ 方案 3 ============ -->
+  <section class="scheme" id="s3">
+    <div class="scheme-head">
+      <h2><span class="num">方案 3</span> 极简无干扰 · 单列聚焦</h2>
+      <p class="meta">工具类应用 · <span class="tag">#工具</span> <span class="tag">#效率</span> <span class="tag">#极简</span> <span class="tag">#开发者</span></p>
+    </div>
+    <div class="stage">
+      <div class="chrome"><i></i><i></i><i></i><span class="url">console.dev-tool.io/login</span></div>
+      <div class="mock m-tool">
+        <form class="col" onsubmit="return false">
+          <div class="logo-line"><i></i>DevTool Console</div>
+          <label>邮箱<input type="email" placeholder="you@company.com" autocomplete="username" style="margin-top:4px"></label>
+          <label>密码<input type="password" placeholder="••••••••" autocomplete="current-password" style="margin-top:4px"></label>
+          <button class="btn" type="submit">继续</button>
+          <p class="hint">按 <kbd>Enter</kbd> 提交 · 忘记密码请走 <a href="#s3" style="color:#2563eb;text-decoration:none">重置链接</a></p>
+          <div class="oauth"><span>GitHub</span><span>Google</span></div>
+        </form>
+      </div>
+    </div>
+    <div class="spec">
+      <div><h4>核心定位</h4><p>零装饰、速度优先：打开→输入→进入之间不出现任何干扰元素。</p></div>
+      <div><h4>配色方案</h4><div class="chips">
+        <span class="chip"><b style="background:#111827"></b>#111827 主色</span>
+        <span class="chip"><b style="background:#ffffff;border-color:#e2e8f0"></b>#FFFFFF 底</span>
+        <span class="chip"><b style="background:#d1d5db"></b>#D1D5DB 边框</span>
+      </div></div>
+      <div><h4>布局结构</h4><p>单列 320–360px 居中，无背景装饰；表单下方一行快捷键提示。可选暗色变体。</p></div>
+      <div><h4>组件与可访问性</h4><p>输入 40px、可见边框优先于阴影；OAuth 图标行；kbd 提示降低学习成本。</p></div>
+    </div>
+  </section>
+
+  <!-- ============ 方案 4 ============ -->
+  <section class="scheme" id="s4">
+    <div class="scheme-head">
+      <h2><span class="num">方案 4</span> 内容为先 · 双栏叙事</h2>
+      <p class="meta">内容社区类平台 · <span class="tag">#社区</span> <span class="tag">#UGC</span> <span class="tag">#氛围</span> <span class="tag">#增长</span></p>
+    </div>
+    <div class="stage">
+      <div class="chrome"><i></i><i></i><i></i><span class="url">community.example.com/join</span></div>
+      <div class="mock m-com">
+        <div class="feed">
+          <div class="head">社区正在发生</div>
+          <div class="post"><div class="t">从 0 到 1 搭建你的 AI 学习路线</div>
+            <div class="d">128 赞 · 32 评论 · 2 小时前</div>
+            <div class="tags"><span class="t1">学习路径</span><span class="t2">AI</span></div></div>
+          <div class="post"><div class="t">大厂真题复盘：这些坑我踩过</div>
+            <div class="d">96 赞 · 21 评论 · 5 小时前</div>
+            <div class="tags"><span class="t3">面试</span><span class="t2">真题</span></div></div>
+        </div>
+        <div class="panel">
+          <form class="card" onsubmit="return false">
+            <h4>加入我们</h4>
+            <p class="sub">3 秒创建账号，开始创作与交流</p>
+            <div class="stat">今日 1.2k 新帖 · 8.6k 人在线</div>
+            <input type="text" placeholder="邮箱 / 用户名" autocomplete="username" style="margin-bottom:12px">
+            <input type="password" placeholder="密码" autocomplete="current-password" style="margin-bottom:14px">
+            <button class="btn" type="submit">注册 / 登录</button>
+            <div class="links"><a href="#s4">已有账号？直接登录</a><a href="#s4">游客逛逛</a></div>
+          </form>
+        </div>
+      </div>
+    </div>
+    <div class="spec">
+      <div><h4>核心定位</h4><p>让内容说话：登录前先传达「社区正在发生什么」，用氛围与数据降低注册犹豫。</p></div>
+      <div><h4>配色方案</h4><div class="chips">
+        <span class="chip"><b style="background:#ff6154"></b>#FF6154 主色</span>
+        <span class="chip"><b style="background:#fffdf8;border-color:#f1ead9"></b>#FFFDF8 暖白底</span>
+        <span class="chip"><b style="background:#fef3c7"></b>低饱和标签色</span>
+      </div></div>
+      <div><h4>布局结构</h4><p>左内容橱窗（热帖卡）+ 右登录卡；移动端仅保留登录卡 + 一句社区介绍。</p></div>
+      <div><h4>组件与可访问性</h4><p>登录卡内嵌社区数据增强动机；输入 44px/圆角 10；标签为装饰性色彩，不承载唯一信息。</p></div>
+    </div>
+  </section>
+
+  <!-- ============ 方案 5 ============ -->
+  <section class="scheme" id="s5">
+    <div class="scheme-head">
+      <h2><span class="num">方案 5</span> 稳重可信 · 深蓝高对比</h2>
+      <p class="meta">金融类产品 · <span class="tag">#金融</span> <span class="tag">#安全</span> <span class="tag">#合规</span> <span class="tag">#高对比</span></p>
+    </div>
+    <div class="stage">
+      <div class="chrome"><i></i><i></i><i></i><span class="url">secure.bank-example.com</span></div>
+      <div class="mock m-fin">
+        <div class="wrap">
+          <form class="card" onsubmit="return false">
+            <h4>网银登录</h4>
+            <p class="sub">请核对登录信息，谨防钓鱼网站</p>
+            <input type="text" placeholder="卡号 / 用户名" autocomplete="username" class="mono" style="margin-bottom:12px">
+            <input type="password" placeholder="登录密码" autocomplete="current-password" style="margin-bottom:12px">
+            <div class="dual" style="margin-bottom:14px">
+              <input type="text" placeholder="短信验证码" class="mono" inputmode="numeric">
+              <button class="code" type="button">59s 后重发</button>
+            </div>
+            <button class="btn" type="submit">安全登录</button>
+          </form>
+          <div class="secure"><b>SSL 加密传输</b> · 资金由 XX 银行存管 · 上次登录：2026-10-10 21:14（本机）</div>
+        </div>
+      </div>
+    </div>
+    <div class="spec">
+      <div><h4>核心定位</h4><p>安全、稳妥、精确：所有视觉决策服务于「信任」——高对比、强背书、零花哨。</p></div>
+      <div><h4>配色方案</h4><div class="chips">
+        <span class="chip"><b style="background:#1e3a8a"></b>#1E3A8A 主色</span>
+        <span class="chip"><b style="background:#0b1f3a"></b>#0B1F3A 深底</span>
+        <span class="chip"><b style="background:#ffffff"></b>#FFFFFF 卡片</span>
+      </div></div>
+      <div><h4>布局结构</h4><p>居中卡 380–420px；卡片下方固定「安全提示条」（加密 / 存管 / 上次登录）。</p></div>
+      <div><h4>组件与可访问性</h4><p>双因素（密码 + 验证码，等宽字体）；正文对比 ≥ 7:1；提示文字 ≥ 12px 且对比 ≥ 4.5:1。</p></div>
+    </div>
+  </section>
+
+  <!-- ============ 现状对比 ============ -->
+  <section class="scheme" id="now">
+    <div class="scheme-head">
+      <h2><span class="num">改造前</span> 现状基线 · 深色玻璃拟态</h2>
+      <p class="meta">当前 Login.vue 的实际样式 · <span class="tag">#深色</span> <span class="tag">#玻璃拟态</span> <span class="tag">#emoji</span> <span class="tag">#与全站不一致</span></p>
+    </div>
+    <div class="stage">
+      <div class="chrome"><i></i><i></i><i></i><span class="url">localhost:3001/login（当前实现）</span></div>
+      <div class="mock m-now">
+        <form class="box" onsubmit="return false">
+          <h4>🎓 智能学习平台</h4>
+          <p class="sub">用户登录</p>
+          <input type="text" placeholder="请输入用户名" style="margin-bottom:16px">
+          <input type="password" placeholder="请输入密码" style="margin-bottom:18px">
+          <button class="btn" type="submit">登录</button>
+          <div class="links"><a href="#now">没有账号？立即注册</a><a href="#now">返回首页</a></div>
+          <p class="note">现状问题：全站唯一深色页 / 含 emoji / 占位符对比度约 2:1 / 无 label 与 autocomplete</p>
+        </form>
+      </div>
+    </div>
+    <div class="spec">
+      <div><h4>配色</h4><div class="chips">
+        <span class="chip"><b style="background:#1a1a2e"></b>#1A1A2E 底</span>
+        <span class="chip"><b style="background:#4fc3f7"></b>#4FC3F7 标题</span>
+        <span class="chip"><b style="background:linear-gradient(135deg,#667eea,#764ba2)"></b>紫渐变按钮</span>
+      </div></div>
+      <div><h4>主要问题</h4><p>与全站浅色蓝白主题断层；标题含 emoji；深底占位符对比仅约 2:1；无真实 label / autocomplete / aria-live。</p></div>
+      <div><h4>改造方向</h4><p>采用方案 6「蓝白卷面」：保留表单结构（Element Plus），仅替换视觉层 + 补齐可访问性，改动集中在 Login.vue / Register.vue 的模板与样式。</p></div>
+      <div><h4>对比结论</h4><p>视觉上从「深色玻璃 AI 感」转为「浅蓝考卷学术感」，与考试页/学习分析页形成统一语言。</p></div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="inner">
+    与 <b>PLAN-登录页风格选型.md</b> 配套使用 · 全部样式为纯 CSS（无图片、无外部资源）· 可访问性基线：WCAG 2.1 AA（对比度 / 键盘 / 焦点可见 / 真实 label / aria-live）
+  </div>
+</footer>
+
+</body>
+</html>
