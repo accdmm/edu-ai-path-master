@@ -40,7 +40,7 @@
             v-model="activeBannerIndex"
             :interval="5000" 
             height="280px"
-            indicator-position="inside"
+            indicator-position=""
             arrow="hover"
           >
             <el-carousel-item v-for="(banner, index) in bannerList" :key="index">
@@ -201,19 +201,48 @@
       </div>
     </div>
 
-    <!-- 管理员登录对话框 -->
-    <el-dialog v-model="adminLoginVisible" title="管理员登录" width="400px" :close-on-click-modal="false">
-      <el-form :model="adminLoginForm" :rules="adminLoginRules" ref="adminLoginFormRef" label-width="80px">
+    <!-- 管理员登录对话框（样式与登录页「极简单列」同一套设计语言） -->
+    <el-dialog
+      v-model="adminLoginVisible"
+      title="管理员登录"
+      width="400px"
+      class="admin-login-dialog"
+      :close-on-click-modal="false"
+    >
+      <el-form
+        :model="adminLoginForm"
+        :rules="adminLoginRules"
+        ref="adminLoginFormRef"
+        label-position="top"
+        @submit.prevent
+      >
         <el-form-item label="用户名" prop="username">
-          <el-input v-model="adminLoginForm.username" placeholder="请输入用户名" />
+          <el-input
+            v-model="adminLoginForm.username"
+            size="large"
+            placeholder="请输入管理员用户名"
+            autocomplete="username"
+            :disabled="adminLoginLoading"
+            @keyup.enter="handleAdminLogin"
+          />
         </el-form-item>
         <el-form-item label="密码" prop="password">
-          <el-input v-model="adminLoginForm.password" type="password" placeholder="请输入密码" show-password />
+          <el-input
+            v-model="adminLoginForm.password"
+            type="password"
+            size="large"
+            placeholder="请输入密码"
+            autocomplete="current-password"
+            show-password
+            :disabled="adminLoginLoading"
+            @keyup.enter="handleAdminLogin"
+          />
         </el-form-item>
+        <p v-if="adminLoginError" class="admin-login-error" role="alert" aria-live="polite">{{ adminLoginError }}</p>
       </el-form>
       <template #footer>
-        <el-button @click="adminLoginVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleAdminLogin" :loading="adminLoginLoading">登录</el-button>
+        <el-button class="admin-login-cancel" :disabled="adminLoginLoading" @click="adminLoginVisible = false">取消</el-button>
+        <el-button type="primary" class="admin-login-submit" :loading="adminLoginLoading" @click="handleAdminLogin">登录</el-button>
       </template>
     </el-dialog>
 
@@ -576,8 +605,10 @@ const goAdminConsole = () => {
   router.push('/admin')
 }
 
-// 管理员登录弹窗
+// 管理员登录弹窗（行内错误即时反馈，不依赖 toast）
+const adminLoginError = ref('')
 const showAdminLogin = () => {
+  adminLoginError.value = ''
   adminLoginVisible.value = true
 }
 
@@ -587,6 +618,7 @@ const handleAdminLogin = async () => {
   await adminLoginFormRef.value.validate(async (valid) => {
     if (valid) {
       adminLoginLoading.value = true
+      adminLoginError.value = ''
       try {
         const res = await request.post('/api/user/login', adminLoginForm)
         if (res.data.role && res.data.role.toUpperCase() === 'ADMIN') {
@@ -603,10 +635,12 @@ const handleAdminLogin = async () => {
           adminLoginForm.password = ''
           router.push('/admin')
         } else {
+          adminLoginError.value = '该账号不是管理员，无权访问后台'
           ElMessage.error('该账号不是管理员，无权访问后台')
         }
       } catch (e) {
-        // 错误提示已在axios拦截器处理
+        // 行内展示（role=alert 可被读屏播报）；toast 由 axios 拦截器负责
+        adminLoginError.value = (e && e.message) ? e.message : '登录失败，请稍后重试'
       } finally {
         adminLoginLoading.value = false
       }
@@ -1184,5 +1218,86 @@ const loadActiveCredits = async () => {
   margin-left: 12px;
   padding: 4px 18px;
   font-size: 1rem;
+}
+</style>
+
+<style lang="scss">
+/* 管理员登录弹窗：与登录页「极简单列」同一套设计语言。
+   弹窗挂载到 body，scoped 样式不可达，故用非 scoped 并以 .admin-login-dialog 前缀隔离。 */
+.admin-login-dialog {
+  border-radius: 12px;
+
+  .el-dialog__header {
+    padding: 22px 24px 0;
+    margin-right: 0;
+  }
+
+  .el-dialog__title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #303133;
+  }
+
+  .el-dialog__headerbtn {
+    top: 16px;
+    right: 16px;
+  }
+
+  .el-dialog__body {
+    padding: 18px 24px 0;
+  }
+
+  .el-dialog__footer {
+    padding: 6px 24px 20px;
+  }
+
+  .el-form-item {
+    margin-bottom: 16px;
+  }
+
+  .el-form-item__label {
+    padding-bottom: 6px;
+    font-size: 13px;
+    line-height: 1.4;
+    color: #606266;
+  }
+
+  /* 输入框：可见边框 + 44px，与登录/注册页一致 */
+  .el-input__wrapper {
+    height: 44px;
+    border-radius: 8px;
+    box-shadow: 0 0 0 1px #d1d5db inset;
+  }
+
+  .el-input__wrapper:hover {
+    box-shadow: 0 0 0 1px #c0c4cc inset;
+  }
+
+  .el-input__wrapper.is-focus {
+    box-shadow: 0 0 0 1px #409eff inset, 0 0 0 3px rgba(64, 158, 255, .18);
+  }
+
+  .el-input__inner {
+    font-size: 14px;
+  }
+
+  .admin-login-error {
+    margin: 0 0 4px;
+    font-size: 13px;
+    color: #f56c6c;
+  }
+
+  .admin-login-cancel,
+  .admin-login-submit {
+    height: 38px;
+    border-radius: 8px;
+    padding: 0 18px;
+  }
+
+  .admin-login-cancel:focus-visible,
+  .admin-login-submit:focus-visible {
+    outline: 2px solid #409eff;
+    outline-offset: 2px;
+  }
 }
 </style> 
