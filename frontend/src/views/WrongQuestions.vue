@@ -9,6 +9,18 @@
             <span>我的错题本</span>
           </div>
           <div class="hero-sub">考试判卷后自动收录，按知识点归类；连续答对 2 次或手动标记即掌握</div>
+          <div class="hero-actions">
+            <el-button
+              class="consolidate-btn"
+              :loading="consolidateLoading"
+              :disabled="consolidateDisabled"
+              @click="handleConsolidate"
+            >
+              <el-icon><DocumentAdd /></el-icon>
+              <span class="btn-text">生成巩固练习卷</span>
+            </el-button>
+            <span class="hero-hint">基于未掌握/半掌握错题自动组卷，考完自动回写掌握度</span>
+          </div>
         </div>
         <div class="hero-stats">
           <div class="hero-stat">
@@ -98,7 +110,6 @@
                   <span class="choice-label">{{ letterOf(idx) }}</span>
                   <span class="choice-content">{{ choice.content }}</span>
                   <el-icon v-if="showCorrectMark(item, idx)" class="correct-icon"><Check /></el-icon>
-                  <span v-if="showHistoryWrong(item, idx)" class="history-tag">上次选错</span>
                 </div>
               </div>
 
@@ -269,14 +280,15 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  Collection, ArrowDown, Aim, Check, InfoFilled, Notebook, MagicStick
+  Collection, ArrowDown, Aim, Check, InfoFilled, Notebook, MagicStick, DocumentAdd
 } from '@element-plus/icons-vue'
 import {
   getWrongQuestions,
   getWrongQuestionStats,
   toggleWrongQuestionMaster,
   removeWrongQuestion,
-  aiAnalyzeWrongQuestion
+  aiAnalyzeWrongQuestion,
+  generateConsolidationPaper
 } from '@/api/wrongQuestion'
 
 const router = useRouter()
@@ -301,8 +313,15 @@ const retryStates = reactive({})
 const aiStates = reactive({})
 /** 操作进行中的错题ID：防止连续点击导致掌握状态被反复切换 */
 const actionLoadingId = ref(null)
+/** 巩固练习卷生成中 */
+const consolidateLoading = ref(false)
 
 const hasFilter = computed(() => activeCategoryId.value !== null || statusFilter.value !== '')
+
+/** 无未掌握/半掌握错题时禁用巩固卷生成（已掌握题目不再出题） */
+const consolidateDisabled = computed(() =>
+  ((stats.value.unmastered || 0) + (stats.value.learning || 0)) === 0
+)
 
 const emptyText = computed(() =>
   hasFilter.value
@@ -470,7 +489,7 @@ function formatRetryAnswer(item) {
   return item.multi ? st.answer.split(',').join('、') : st.answer
 }
 
-/** 选项样式：本次选错标红、正确项标绿对比；未重新作答时保留历史错误标记 */
+/** 选项样式：本次选错标红、正确项标绿对比；未作答且未查看答案时保持默认样式 */
 function choiceClass(item, idx) {
   const letter = letterOf(idx)
   const st = retryOf(item)
@@ -483,20 +502,11 @@ function choiceClass(item, idx) {
     return ''
   }
   if (revealedIds.value.has(item.id) && correct) return 'choice-correct'
-  if (showHistoryWrong(item, idx)) return 'choice-history-wrong'
   return ''
 }
 
 const showCorrectMark = (item, idx) =>
   isChoiceCorrect(item, idx) && (retryOf(item).answered || revealedIds.value.has(item.id))
-
-/** 历史作答（上次考试判卷结果）为错误选项时标红，展示"上次选错" */
-function showHistoryWrong(item, idx) {
-  if (!item.userAnswer) return false
-  const letters = String(item.userAnswer).split(',').map(s => s.trim().toUpperCase()).filter(Boolean)
-  const letter = letterOf(idx)
-  return letters.includes(letter) && !isChoiceCorrect(item, idx)
-}
 
 function toggleAnswer(item) {
   const next = new Set(revealedIds.value)
@@ -576,6 +586,24 @@ async function handleRemove(item) {
     // 错误提示由 request 拦截器统一处理
   } finally {
     actionLoadingId.value = null
+  }
+}
+
+// ------- 巩固练习卷 -------
+
+async function handleConsolidate() {
+  if (consolidateLoading.value) return
+  consolidateLoading.value = true
+  try {
+    const res = await generateConsolidationPaper()
+    if (res.code === 200 && res.data) {
+      ElMessage.success('巩固练习卷已生成，即将开始作答')
+      router.push(`/exam/start/${res.data}`)
+    }
+  } catch (e) {
+    // 错误提示由 request 拦截器统一处理（无可用错题时返回业务提示）
+  } finally {
+    consolidateLoading.value = false
   }
 }
 
@@ -701,6 +729,38 @@ onMounted(() => {
   font-size: 13px;
   color: rgba(255, 255, 255, 0.85);
   line-height: 1.6;
+}
+
+.hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+/* 头图上的白色主按钮（生成巩固练习卷） */
+.consolidate-btn {
+  background: #fff;
+  border: none;
+  color: #7952b3;
+  font-weight: 600;
+}
+
+.consolidate-btn:hover,
+.consolidate-btn:focus {
+  background: #f3ecff;
+  color: #7952b3;
+}
+
+.consolidate-btn.is-disabled {
+  background: rgba(255, 255, 255, 0.45);
+  color: rgba(121, 82, 179, 0.55);
+}
+
+.hero-hint {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
 }
 
 .hero-stats {
@@ -934,26 +994,13 @@ onMounted(() => {
   background: #52c41a;
 }
 
-.choice-item.choice-wrong,
-.choice-item.choice-history-wrong {
+.choice-item.choice-wrong {
   background: #fff1f0;
   border-color: #ff4d4f;
 }
 
-.choice-item.choice-wrong .choice-label,
-.choice-item.choice-history-wrong .choice-label {
+.choice-item.choice-wrong .choice-label {
   background: #ff4d4f;
-}
-
-.history-tag {
-  flex-shrink: 0;
-  margin-left: 8px;
-  padding: 1px 8px;
-  border-radius: 6px;
-  font-size: 12px;
-  color: #f56c6c;
-  background: #fff;
-  border: 1px solid #ffccc7;
 }
 
 .correct-icon {

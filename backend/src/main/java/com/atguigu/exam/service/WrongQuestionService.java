@@ -83,4 +83,13 @@ public interface WrongQuestionService extends IService<WrongQuestion> {
      * @return 统一响应：{analysis, free, remainingFree, activeCredits}；积分不足返回 4002
      */
     Result<Map<String, Object>> aiAnalysis(Long userId, Long id);
+
+    /**
+     * 基于错题生成巩固练习卷：取未掌握/半掌握错题（原题）+ 同知识点强化题组卷，
+     * 落库为归属当前用户的 DRAFT 试卷（不消耗积分），考完后判卷自动回写掌握度。
+     *
+     * @param userId 当前用户
+     * @return 试卷ID（前端跳 /exam/start/{paperId}）；无可用错题时抛业务异常
+     */
+    Long generateConsolidationPaper(Long userId);
 }

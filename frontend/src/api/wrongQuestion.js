@@ -44,3 +44,11 @@ export function aiAnalyzeWrongQuestion(id) {
     method: 'post'
   })
 }
+
+// 生成错题巩固练习卷（错题原题 + 同知识点强化题，不消耗积分），返回试卷ID
+export function generateConsolidationPaper() {
+  return request({
+    url: '/api/wrong-questions/consolidation-paper',
+    method: 'post'
+  })
+}

@@ -90,4 +90,13 @@ public class WrongQuestionController {
         }
         return wrongQuestionService.aiAnalysis(userContextUtil.getUserId(), id);
     }
+
+    @PostMapping("/consolidation-paper")
+    @Operation(summary = "生成错题巩固练习卷", description = "取未掌握/半掌握错题（原题）+ 同知识点强化题组卷（DRAFT 归属当前用户，不消耗积分），返回试卷ID；前端跳 /exam/start/{paperId}")
+    public Result<Long> consolidationPaper() {
+        if (!userContextUtil.isAuthenticated()) {
+            return Result.error(401, "未登录");
+        }
+        return Result.success(wrongQuestionService.generateConsolidationPaper(userContextUtil.getUserId()));
+    }
 }

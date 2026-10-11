@@ -4,9 +4,12 @@ import com.atguigu.exam.common.Result;
 import com.atguigu.exam.entity.AnswerRecord;
 import com.atguigu.exam.entity.Category;
 import com.atguigu.exam.entity.CreditRecord;
+import com.atguigu.exam.entity.Paper;
+import com.atguigu.exam.entity.PaperQuestion;
 import com.atguigu.exam.entity.Question;
 import com.atguigu.exam.entity.QuestionAnswer;
 import com.atguigu.exam.entity.QuestionChoice;
+import com.atguigu.exam.entity.UserPaper;
 import com.atguigu.exam.entity.WrongQuestion;
 import com.atguigu.exam.mapper.CreditRecordMapper;
 import com.atguigu.exam.mapper.QuestionAnswerMapper;
@@ -16,7 +19,10 @@ import com.atguigu.exam.service.AnswerRecordService;
 import com.atguigu.exam.service.CategoryService;
 import com.atguigu.exam.service.CreditBillingService;
 import com.atguigu.exam.service.MockInterviewAiService;
+import com.atguigu.exam.service.PaperQuestionService;
+import com.atguigu.exam.service.PaperService;
 import com.atguigu.exam.service.QuestionService;
+import com.atguigu.exam.service.UserPaperService;
 import com.atguigu.exam.service.WrongQuestionService;
 import com.atguigu.exam.vo.WrongQuestionStatsVo;
 import com.atguigu.exam.vo.WrongQuestionVo;
@@ -26,15 +32,19 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.ObjectUtils;
 import org.springframework.util.StringUtils;
 
+import java.math.BigDecimal;
+import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -83,6 +93,15 @@ public class WrongQuestionServiceImpl extends ServiceImpl<WrongQuestionMapper, W
 
     @Autowired
     private CreditRecordMapper creditRecordMapper;
+
+    @Autowired
+    private PaperService paperService;
+
+    @Autowired
+    private PaperQuestionService paperQuestionService;
+
+    @Autowired
+    private UserPaperService userPaperService;
 
     @Override
     public void syncFromGrading(Long userId, Integer examRecordId,
@@ -409,5 +428,80 @@ public class WrongQuestionServiceImpl extends ServiceImpl<WrongQuestionMapper, W
         data.put("remainingFree", Math.max(0, AI_ANALYSIS_DAILY_FREE - (int) freeCount - (free ? 1 : 0)));
         data.put("activeCredits", balance);
         return Result.success(data);
+    }
+
+    /** 巩固卷题目上限（错题原题 + 同知识点强化题） */
+    private static final int CONSOLIDATION_MAX_QUESTIONS = 12;
+
+    /** 每个知识点补充的强化题数量 */
+    private static final int CONSOLIDATION_SIBLINGS_PER_CATEGORY = 2;
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Long generateConsolidationPaper(Long userId) {
+        //1. 取未掌握/半掌握错题（最近答错在前），已掌握的不再出题
+        List<WrongQuestion> wrongs = list(new LambdaQueryWrapper<WrongQuestion>()
+                .eq(WrongQuestion::getUserId, userId)
+                .in(WrongQuestion::getStatus, "UNMASTERED", "LEARNING")
+                .orderByDesc(WrongQuestion::getLastWrongTime)
+                .last("LIMIT 10"));
+        if (ObjectUtils.isEmpty(wrongs)) {
+            throw new RuntimeException("当前没有未掌握或半掌握的错题，暂时无需巩固练习");
+        }
+        //2. 组题：错题原题优先，再按知识点补充同分类强化题（去重，错题保序在前）
+        LinkedHashSet<Long> pickedIds = new LinkedHashSet<>();
+        wrongs.stream().map(WrongQuestion::getQuestionId)
+                .filter(Objects::nonNull).forEach(pickedIds::add);
+        Set<Long> categoryIds = wrongs.stream().map(WrongQuestion::getCategoryId)
+                .filter(Objects::nonNull).collect(Collectors.toSet());
+        for (Long categoryId : categoryIds) {
+            if (pickedIds.size() >= CONSOLIDATION_MAX_QUESTIONS) {
+                break;
+            }
+            List<Question> siblings = questionService.list(new LambdaQueryWrapper<Question>()
+                    .eq(Question::getCategoryId, categoryId)
+                    .notIn(!pickedIds.isEmpty(), Question::getId, pickedIds)
+                    .last("ORDER BY RAND() LIMIT " + CONSOLIDATION_SIBLINGS_PER_CATEGORY));
+            for (Question sibling : siblings) {
+                if (pickedIds.size() >= CONSOLIDATION_MAX_QUESTIONS) {
+                    break;
+                }
+                pickedIds.add(sibling.getId());
+            }
+        }
+        //3. 按选题顺序装载题目（原错题在前）；题目可能已被删除，过滤后为空则直接失败
+        Map<Long, Question> questionMap = questionService.listByIds(pickedIds).stream()
+                .collect(Collectors.toMap(Question::getId, q -> q, (a, b) -> a));
+        List<Question> questions = pickedIds.stream()
+                .map(questionMap::get).filter(Objects::nonNull).toList();
+        if (questions.isEmpty()) {
+            throw new RuntimeException("错题对应的题目已被删除，暂时无法生成巩固练习卷");
+        }
+        //4. 组卷落库（复用 AI 卷/诊断卷规范：DRAFT + user_paper 归属，不消耗积分；开考时 startExam 校验归属）
+        Paper paper = new Paper();
+        paper.setName("错题巩固练习-" + new SimpleDateFormat("MMddHHmm").format(new Date()));
+        paper.setDescription("基于错题本中未掌握/半掌握知识点自动组卷：包含原错题与同知识点强化题，考完后判卷自动回写掌握度。");
+        paper.setStatus("DRAFT");
+        paper.setDuration(30);
+        BigDecimal totalScore = questions.stream()
+                .map(q -> BigDecimal.valueOf(q.getScore() == null ? 5 : q.getScore()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        paper.setTotalScore(totalScore);
+        paper.setQuestionCount(questions.size());
+        paperService.save(paper);
+        for (Question question : questions) {
+            paperQuestionService.save(new PaperQuestion(paper.getId().intValue(), question.getId(),
+                    BigDecimal.valueOf(question.getScore() == null ? 5 : question.getScore())));
+        }
+        UserPaper userPaper = new UserPaper();
+        userPaper.setUserId(userId);
+        userPaper.setPaperId(paper.getId());
+        userPaper.setRelationType(UserPaperServiceImpl.RELATION_AI_GENERATED);
+        userPaperService.save(userPaper);
+
+        log.info("错题巩固练习卷已生成：userId={} paperId={} {} 道题（错题{}道 + 强化题{}道）总分 {}",
+                userId, paper.getId(), questions.size(), wrongs.size(),
+                questions.size() - wrongs.size(), totalScore);
+        return paper.getId();
     }
 }
