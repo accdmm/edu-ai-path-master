@@ -57,6 +57,12 @@ const routes = [
     meta: { title: 'AI 学习路径', requiresAuth: true }
   },
   {
+    path: '/wrong-questions',
+    name: 'WrongQuestions',
+    component: () => import('../views/WrongQuestions.vue'),
+    meta: { title: '我的错题本', requiresAuth: true }
+  },
+  {
     path: '/admin',
     name: 'AdminLayout',
     component: () => import('../views/AdminLayout.vue'),

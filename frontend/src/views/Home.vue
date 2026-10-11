@@ -132,6 +132,11 @@
             <h3>学习路径</h3>
             <p>AI 诊断薄弱知识点，规划分阶段可执行学习路径</p>
           </div>
+          <div class="action-card" @click="goToWrongQuestions">
+            <el-icon class="card-wrong-icon"><Collection /></el-icon>
+            <h3>错题本</h3>
+            <p>考试错题自动收录，按知识点归类，掌握后自动归档</p>
+          </div>
           <div class="action-card" @click="goToVideos">
             <el-icon class="card-icon video-icon"><VideoPlay /></el-icon>
             <h3>视频百科</h3>
@@ -266,7 +271,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
-  Search, Document, Edit, Trophy, Bell, DataAnalysis, View, Check, User, Files, TrendCharts, VideoPlay, ChatDotRound, Microphone, Cpu, Guide, Setting
+  Search, Document, Edit, Trophy, Bell, DataAnalysis, View, Check, User, Files, TrendCharts, VideoPlay, ChatDotRound, Microphone, Cpu, Guide, Setting, Collection
 } from '@element-plus/icons-vue'
 import request from '../utils/request'
 import { useUserStore } from '@/stores/user'
@@ -548,6 +553,14 @@ const goToLearningPath = () => {
     router.push('/learning-path')
   } else {
     router.push({ path: '/login', query: { redirect: '/learning-path' } })
+  }
+}
+
+const goToWrongQuestions = () => {
+  if (userStore.token) {
+    router.push('/wrong-questions')
+  } else {
+    router.push({ path: '/login', query: { redirect: '/wrong-questions' } })
   }
 }
 
@@ -961,7 +974,13 @@ const loadActiveCredits = async () => {
 .practice-icon { color: #ff6b6b; }
 .ranking-icon { color: #ffa500; }
 .analysis-icon { color: #51cf66; }
+.card-path-icon,
+.card-wrong-icon {
+  font-size: 3rem;
+  margin-bottom: 16px;
+}
 .card-path-icon { color: #7952b3; }
+.card-wrong-icon { color: #e6a23c; }
 .video-icon { color: #ffa500; }
 .chat-icon { color: #4fc3f7; }
 .interview-icon { color: #ff6b6b; }

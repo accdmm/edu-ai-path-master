@@ -3,6 +3,9 @@ package com.atguigu.exam.service;
 import com.atguigu.exam.entity.AnswerRecord;
 import com.atguigu.exam.entity.Question;
 import com.atguigu.exam.entity.WrongQuestion;
+import com.atguigu.exam.vo.WrongQuestionStatsVo;
+import com.atguigu.exam.vo.WrongQuestionVo;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 
 import java.util.List;
@@ -24,4 +27,23 @@ public interface WrongQuestionService extends IService<WrongQuestion> {
      */
     void collectFromExam(Long userId, Integer examRecordId,
                          List<AnswerRecord> answerRecords, Map<Long, Question> questionMap);
+
+    /**
+     * 分页查询错题本列表（按最近答错时间倒序），并装配题目详情
+     * （题干/选项/标准答案/解析/最近一次作答）
+     *
+     * @param userId     当前用户
+     * @param page       页码（从1开始）
+     * @param size       每页数量
+     * @param categoryId 知识点分类筛选（可空）
+     * @param status     掌握状态筛选 UNMASTERED/LEARNING/MASTERED（可空）
+     */
+    Page<WrongQuestionVo> pageWrongQuestions(Long userId, long page, long size, Long categoryId, String status);
+
+    /**
+     * 错题统计：总览（总/未掌握/半掌握/已掌握）+ 按知识点聚合（按错题数倒序）
+     *
+     * @param userId 当前用户
+     */
+    WrongQuestionStatsVo stats(Long userId);
 }

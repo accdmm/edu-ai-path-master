@@ -74,9 +74,10 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/questions/**").authenticated()
                 .requestMatchers(HttpMethod.PUT, "/api/questions/**").authenticated()
                 .requestMatchers(HttpMethod.DELETE, "/api/questions/**").authenticated()
-                // 🔒 按用户维度生成的功能：学习路径 / 模拟面试 / AI 面试官
+                // 🔒 按用户维度生成的功能：学习路径 / 模拟面试 / AI 面试官 / 错题本
                 .requestMatchers("/api/learning-path/**").authenticated()
                 .requestMatchers("/api/mock-interview/**", "/api/ai-interview/**").authenticated()
+                .requestMatchers("/api/wrong-questions/**").authenticated()
 
                 // 💳 支付：支付宝服务器回调（无 token）需放行，其余支付接口需登录
                 .requestMatchers("/api/pay/alipay/notify").permitAll()
