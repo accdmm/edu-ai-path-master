@@ -63,6 +63,12 @@ const routes = [
     meta: { title: '我的错题本', requiresAuth: true }
   },
   {
+    path: '/smart-paper',
+    name: 'SmartPaper',
+    component: () => import('../views/SmartPaper.vue'),
+    meta: { title: '智能组卷', requiresAuth: true }
+  },
+  {
     path: '/admin',
     name: 'AdminLayout',
     component: () => import('../views/AdminLayout.vue'),

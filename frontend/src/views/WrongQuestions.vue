@@ -19,6 +19,10 @@
               <el-icon><DocumentAdd /></el-icon>
               <span class="btn-text">生成巩固练习卷</span>
             </el-button>
+            <el-button class="smart-link-btn" @click="router.push('/smart-paper')">
+              <el-icon><MagicStick /></el-icon>
+              <span class="btn-text">AI 智能组卷</span>
+            </el-button>
             <span class="hero-hint">基于未掌握/半掌握错题自动组卷，考完自动回写掌握度</span>
           </div>
         </div>
@@ -756,6 +760,20 @@ onMounted(() => {
 .consolidate-btn.is-disabled {
   background: rgba(255, 255, 255, 0.45);
   color: rgba(121, 82, 179, 0.55);
+}
+
+/* 头图上的描边次按钮（按知识点组卷） */
+.smart-link-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  color: #fff;
+}
+
+.smart-link-btn:hover,
+.smart-link-btn:focus {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: #fff;
+  color: #fff;
 }
 
 .hero-hint {

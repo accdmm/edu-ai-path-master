@@ -18,6 +18,7 @@ const AUTH_REQUIRED_PREFIXES = [
   '/api/exam-records',
   '/api/learning-path',
   '/api/wrong-questions',
+  '/api/smart-paper',
   '/api/analysis',
   '/api/chat',
   '/api/pay',

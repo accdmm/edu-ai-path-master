@@ -137,6 +137,11 @@
             <h3>错题本</h3>
             <p>考试错题自动收录，按知识点归类，掌握后自动归档</p>
           </div>
+          <div class="action-card" @click="goToSmartPaper">
+            <el-icon class="card-smart-icon"><MagicStick /></el-icon>
+            <h3>AI 智能组卷</h3>
+            <p>AI 诊断薄弱知识点，从题库智能选题组卷（消耗积分）</p>
+          </div>
           <div class="action-card" @click="goToVideos">
             <el-icon class="card-icon video-icon"><VideoPlay /></el-icon>
             <h3>视频百科</h3>
@@ -271,7 +276,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
-  Search, Document, Edit, Trophy, Bell, DataAnalysis, View, Check, User, Files, TrendCharts, VideoPlay, ChatDotRound, Microphone, Cpu, Guide, Setting, Collection
+  Search, Document, Edit, Trophy, Bell, DataAnalysis, View, Check, User, Files, TrendCharts, VideoPlay, ChatDotRound, Microphone, Cpu, Guide, Setting, Collection, MagicStick
 } from '@element-plus/icons-vue'
 import request from '../utils/request'
 import { useUserStore } from '@/stores/user'
@@ -561,6 +566,14 @@ const goToWrongQuestions = () => {
     router.push('/wrong-questions')
   } else {
     router.push({ path: '/login', query: { redirect: '/wrong-questions' } })
+  }
+}
+
+const goToSmartPaper = () => {
+  if (userStore.token) {
+    router.push('/smart-paper')
+  } else {
+    router.push({ path: '/login', query: { redirect: '/smart-paper' } })
   }
 }
 
@@ -975,12 +988,14 @@ const loadActiveCredits = async () => {
 .ranking-icon { color: #ffa500; }
 .analysis-icon { color: #51cf66; }
 .card-path-icon,
-.card-wrong-icon {
+.card-wrong-icon,
+.card-smart-icon {
   font-size: 3rem;
   margin-bottom: 16px;
 }
 .card-path-icon { color: #7952b3; }
 .card-wrong-icon { color: #e6a23c; }
+.card-smart-icon { color: #13c2c2; }
 .video-icon { color: #ffa500; }
 .chat-icon { color: #4fc3f7; }
 .interview-icon { color: #ff6b6b; }
