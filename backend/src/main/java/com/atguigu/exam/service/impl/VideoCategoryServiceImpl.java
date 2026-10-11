@@ -29,16 +29,23 @@ public class VideoCategoryServiceImpl implements VideoCategoryService {
 
     @Override
     public List<VideoCategory> getCategoryTree() {
-        // 获取所有启用的分类
-        List<VideoCategory> allCategories = videoCategoryMapper.selectList(
-            new LambdaQueryWrapper<VideoCategory>()
-                .eq(VideoCategory::getStatus, 1)
-                .orderByAsc(VideoCategory::getSortOrder)
-        );
-        
+        return getCategoryTree(false);
+    }
+
+    @Override
+    public List<VideoCategory> getCategoryTree(boolean includeDisabled) {
+        // includeDisabled=false：仅启用分类（用户侧展示）；
+        // includeDisabled=true：包含已禁用分类（管理端展示，避免禁用后整棵子树从列表消失、无法再启用）
+        LambdaQueryWrapper<VideoCategory> wrapper = new LambdaQueryWrapper<VideoCategory>()
+            .orderByAsc(VideoCategory::getSortOrder);
+        if (!includeDisabled) {
+            wrapper.eq(VideoCategory::getStatus, 1);
+        }
+        List<VideoCategory> allCategories = videoCategoryMapper.selectList(wrapper);
+
         // 获取并填充每个分类的视频数量
         fillVideoCount(allCategories);
-        
+
         // 构建树形结构
         return buildTree(allCategories);
     }

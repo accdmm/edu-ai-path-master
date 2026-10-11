@@ -87,7 +87,8 @@ const categoryTreeOptions = ref([])
 const getCategoryList = async () => {
   loading.value = true
   try {
-    const res = await getCategoryTree()
+    // 管理端必须包含已禁用分类：禁用后以「禁用」样式继续展示（可再次启用），而非从列表消失
+    const res = await getCategoryTree({ includeDisabled: true })
     categoryList.value = res.data
     const flatRes = await getVideoCategories()
     categoryTreeOptions.value = buildTreeOptions(flatRes.data)

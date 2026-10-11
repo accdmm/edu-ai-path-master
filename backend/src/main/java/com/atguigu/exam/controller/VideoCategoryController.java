@@ -36,12 +36,14 @@ public class VideoCategoryController {
 
     /**
      * 获取分类树形结构
+     * @param includeDisabled 是否包含已禁用分类（管理端传 true：禁用分类展示禁用样式而非隐藏）
      * @return 分类树数据
      */
     @GetMapping("/tree")
-    @Operation(summary = "获取分类树形结构", description = "获取视频分类的树形层级结构，用于前端组件展示")
-    public Result<List<VideoCategory>> getCategoryTree() {
-        return Result.success(videoCategoryService.getCategoryTree());
+    @Operation(summary = "获取分类树形结构", description = "获取视频分类的树形层级结构，用于前端组件展示；includeDisabled=true 时包含已禁用分类")
+    public Result<List<VideoCategory>> getCategoryTree(
+            @Parameter(description = "是否包含已禁用分类，默认 false") @RequestParam(required = false, defaultValue = "false") Boolean includeDisabled) {
+        return Result.success(videoCategoryService.getCategoryTree(Boolean.TRUE.equals(includeDisabled)));
     }
 
     /**

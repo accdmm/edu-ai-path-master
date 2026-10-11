@@ -298,13 +298,21 @@ onMounted(() => {
 // 加载分类数据
 const loadCategories = async () => {
   try {
-    const res = await getVideoCategoryTree()
-    categoryOptions.value = res.data || []
+    // 级联选项包含已禁用分类：以禁用样式（灰显不可选）展示，而非直接隐藏
+    const res = await getVideoCategoryTree({ includeDisabled: true })
+    categoryOptions.value = markDisabledOptions(res.data || [])
   } catch (error) {
     console.error('加载分类失败:', error)
     ElMessage.error('加载分类失败')
   }
 }
+
+// 递归标记已禁用分类：级联选项中灰显不可选（状态为 0=禁用），保证禁用分类仍可见
+const markDisabledOptions = (nodes) => (nodes || []).map(node => ({
+  ...node,
+  disabled: node.status !== 1,
+  children: node.children && node.children.length ? markDisabledOptions(node.children) : node.children
+}))
 
 // 处理分类变化
 const handleCategoryChange = (value) => {

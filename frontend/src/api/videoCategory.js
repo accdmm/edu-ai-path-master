@@ -16,11 +16,13 @@ export function getVideoCategories() {
 
 /**
  * 获取分类树形结构
+ * @param {Object} [params] - 查询参数，如 { includeDisabled: true }（管理端包含已禁用分类）
  */
-export function getVideoCategoryTree() {
+export function getVideoCategoryTree(params) {
   return request({
     url: '/api/video-categories/tree',
-    method: 'get'
+    method: 'get',
+    params
   })
 }
 
@@ -93,10 +95,12 @@ export function deleteVideoCategory(id) {
 
 /**
  * 获取分类树形结构（别名）
+ * @param {Object} [params] - 查询参数，如 { includeDisabled: true }（管理端包含已禁用分类）
  */
-export function getCategoryTree() {
+export function getCategoryTree(params) {
   return request({
     url: '/api/video-categories/tree',
-    method: 'get'
+    method: 'get',
+    params
   })
 } 

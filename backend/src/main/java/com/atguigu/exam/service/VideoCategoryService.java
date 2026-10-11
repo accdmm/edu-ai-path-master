@@ -11,10 +11,18 @@ import java.util.List;
 public interface VideoCategoryService {
     
     /**
-     * 获取分类树（包含视频数量统计）
+     * 获取分类树（仅启用分类，包含视频数量统计）
      * @return 分类树列表
      */
     List<VideoCategory> getCategoryTree();
+
+    /**
+     * 获取分类树（包含视频数量统计）
+     * @param includeDisabled 是否包含已禁用分类：
+     *                        true=管理端场景（禁用分类需展示禁用样式以便恢复），false=仅启用分类
+     * @return 分类树列表
+     */
+    List<VideoCategory> getCategoryTree(boolean includeDisabled);
     
     /**
      * 获取所有分类列表
