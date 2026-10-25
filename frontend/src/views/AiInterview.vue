@@ -65,58 +65,76 @@
     <div v-else-if="stage === 'chatting'" class="interview-chat">
       <div class="chat-header">
         <div class="chat-title">
-          <el-icon class="chat-avatar"><Microphone /></el-icon>
+          <span class="ai-badge">AI</span>
           <div>
             <h3>AI 面试官</h3>
-            <span class="chat-sub">第 {{ round }} / {{ maxRounds }} 轮 · {{ directionLabel }} · {{ difficultyLabel }} · 用时 {{ elapsedText }}</span>
+            <span class="chat-sub">第 {{ round }} / {{ maxRounds }} 轮 · {{ directionLabel }} · {{ difficultyLabel }}</span>
           </div>
         </div>
-        <el-button size="small" type="danger" plain :loading="finishing" @click="handleFinish">结束面试</el-button>
+        <span class="call-live"><i class="live-dot"></i>面试中</span>
       </div>
 
-      <!-- 视频模拟区：AI 面试官为模拟画面；用户可自主开启/关闭摄像头（仅本地预览，不上传） -->
-      <div class="video-stage">
-        <div class="video-tile ai-tile">
-          <div class="ai-sim">
-            <div class="ai-avatar" :class="{ speaking: aiLoading }">
-              <el-icon><Microphone /></el-icon>
-            </div>
-            <div class="ai-wave" :class="{ active: aiLoading }">
-              <span v-for="n in 5" :key="n" :style="{ animationDelay: (n * 0.12) + 's' }"></span>
-            </div>
-          </div>
-          <div class="tile-footer">
-            <span class="tile-name">AI 面试官</span>
-            <span class="tile-status">{{ aiLoading ? '正在提问…' : '在线（模拟）' }}</span>
-          </div>
+      <!-- BOSS 直聘式语音面试间：面试官不使用视频，以动态光晕模拟；用户摄像头为右侧竖屏小窗 -->
+      <div class="call-stage">
+        <span class="ai-orb-caption">{{ aiLoading ? 'AI 面试官正在提问…' : 'AI 面试官在线' }}</span>
+        <div class="ai-orb-wrap" :class="{ speaking: aiLoading }" aria-label="AI 面试官（模拟形象）">
+          <svg class="ai-orb" viewBox="0 0 200 200" aria-hidden="true">
+            <defs>
+              <linearGradient id="aiOrbGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#6ee7d8" />
+                <stop offset="45%" stop-color="#8a7cf5" />
+                <stop offset="100%" stop-color="#ff9f9a" />
+              </linearGradient>
+              <filter id="aiOrbBlur" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="9" />
+              </filter>
+            </defs>
+            <path
+              d="M100 8 C112 66 134 88 192 100 C134 112 112 134 100 192 C88 134 66 112 8 100 C66 88 88 66 100 8Z"
+              fill="url(#aiOrbGradient)"
+              filter="url(#aiOrbBlur)"
+            />
+          </svg>
         </div>
 
-        <div class="video-tile user-tile">
+        <div class="user-cam" :class="{ 'cam-on': cameraOn }">
           <video
             v-show="cameraOn"
             ref="videoRef"
             autoplay
             muted
             playsinline
-            class="camera-video"
+            class="cam-video"
           ></video>
-          <div v-if="!cameraOn" class="camera-off">
-            <el-icon class="camera-off-icon"><VideoCameraFilled /></el-icon>
-            <span class="camera-hint">{{ cameraHint }}</span>
+          <div v-if="!cameraOn" class="cam-off" :title="cameraHint">
+            <el-icon><VideoCameraFilled /></el-icon>
+            <span>摄像头未开启</span>
           </div>
-          <el-button
-            class="camera-toggle"
-            size="small"
-            :type="cameraOn ? 'danger' : 'primary'"
-            plain
+          <span class="cam-label">我</span>
+        </div>
+
+        <div class="call-timer">{{ elapsedText }}</div>
+
+        <div class="call-controls">
+          <button
+            class="ctrl-btn"
+            :class="{ 'ctrl-muted': micMuted }"
+            :title="micMuted ? '取消静音（模拟）' : '静音（模拟）'"
+            @click="toggleMic"
+          >
+            <el-icon><Mute v-if="micMuted" /><Microphone v-else /></el-icon>
+          </button>
+          <button class="ctrl-btn ctrl-hangup" title="结束面试" :disabled="finishing" @click="handleHangup">
+            <el-icon><PhoneFilled /></el-icon>
+          </button>
+          <button
+            class="ctrl-btn"
+            :class="{ 'ctrl-active': cameraOn }"
+            :title="cameraOn ? '关闭视频' : '开启视频'"
             @click="toggleCamera"
-          >{{ cameraOn ? '关闭视频' : '开启视频' }}</el-button>
-          <div class="tile-footer">
-            <span class="tile-name">我</span>
-            <span class="tile-status" :class="{ live: cameraOn }">
-              <i class="status-dot"></i>{{ cameraOn ? '摄像头已开启' : '摄像头未开启' }}
-            </span>
-          </div>
+          >
+            <el-icon><VideoCameraFilled v-if="cameraOn" /><VideoCamera v-else /></el-icon>
+          </button>
         </div>
       </div>
 
@@ -246,14 +264,14 @@
 import { ref, reactive, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Microphone, User, Loading, VideoCameraFilled } from '@element-plus/icons-vue'
+import { Microphone, Mute, User, Loading, VideoCameraFilled, VideoCamera, PhoneFilled } from '@element-plus/icons-vue'
 import request from '@/utils/request'
 import { getActiveCredit } from '@/api/user'
 import { useUserStore } from '@/stores/user'
 
 export default {
   name: 'AiInterview',
-  components: { Microphone, User, Loading },
+  components: { Microphone, Mute, User, Loading, VideoCameraFilled, VideoCamera, PhoneFilled },
   setup() {
     const router = useRouter()
     const userStore = useUserStore()
@@ -270,6 +288,9 @@ export default {
     const cameraOn = ref(false)
     const cameraHint = ref('开启视频，模拟真实面试场景')
     let cameraStream = null
+
+    // 麦克风静音（模拟：当前为文字作答，不影响文本输入）
+    const micMuted = ref(false)
 
     // ---- 异常降级与网络状态 ----
     const isOnline = ref(navigator.onLine)
@@ -365,6 +386,11 @@ export default {
     const toggleCamera = () => {
       if (cameraOn.value) stopCamera()
       else startCamera()
+    }
+
+    const toggleMic = () => {
+      micMuted.value = !micMuted.value
+      ElMessage.info(micMuted.value ? '麦克风已静音（模拟）' : '麦克风已开启（模拟）')
     }
 
     const loadCredits = async () => {
@@ -590,6 +616,19 @@ export default {
       handleFinish()
     }
 
+    const handleHangup = async () => {
+      try {
+        await ElMessageBox.confirm(
+          '确定结束本次面试吗？结束后将生成面试报告。',
+          '结束面试',
+          { confirmButtonText: '结束面试', cancelButtonText: '继续面试', type: 'warning', autofocus: false }
+        )
+      } catch (e) {
+        return // 用户取消
+      }
+      handleFinish()
+    }
+
     const resetAll = () => {
       stopPolling()
       stopTimer()
@@ -599,6 +638,7 @@ export default {
       pollHint.value = ''
       pollFailures = 0
       degradedHint.value = ''
+      micMuted.value = false
       stage.value = 'config'
       messages.value = []
       result.value = {}
@@ -624,8 +664,8 @@ export default {
       reportFailed, pollHint,
       directionLabel, difficultyLabel,
       isOnline, degradedHint, elapsedText,
-      videoRef, cameraOn, cameraHint, toggleCamera,
-      handleStart, handleSend, handleFinish, handleRetryReport, resetAll, goLearningPath
+      videoRef, cameraOn, cameraHint, micMuted, toggleCamera, toggleMic,
+      handleStart, handleSend, handleFinish, handleHangup, handleRetryReport, resetAll, goLearningPath
     }
   }
 }
@@ -653,107 +693,147 @@ export default {
 .poll-alert { margin: 12px 40px 0; border-radius: 8px; }
 .degraded-report { margin-bottom: 12px; border-radius: 8px; }
 
-/* 视频模拟区 */
-.video-stage {
-  display: flex;
-  gap: 10px;
-  padding: 10px 16px 4px;
-  background: #10131a;
-}
-.video-tile {
+/* BOSS 直聘式语音面试间：面试官无视频，用动态光晕模拟 */
+.call-stage {
   position: relative;
-  flex: 1;
-  height: 150px;
+  height: 280px;
+  flex-shrink: 0;
+  overflow: hidden;
+  background: linear-gradient(180deg, #f6f4ff 0%, #e9e6fb 100%);
+}
+.ai-orb-caption {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: #8d8aa8;
+  letter-spacing: 0.3px;
+}
+.ai-orb-wrap {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.ai-orb {
+  width: 190px;
+  height: 190px;
+  animation: orb-breathe 4.5s ease-in-out infinite;
+  will-change: transform;
+}
+.ai-orb-wrap.speaking .ai-orb { animation: orb-speak 1.4s ease-in-out infinite; }
+@keyframes orb-breathe {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  50% { transform: scale(1.05) rotate(5deg); }
+}
+@keyframes orb-speak {
+  0%, 100% { transform: scale(0.98) rotate(0deg); }
+  50% { transform: scale(1.1) rotate(8deg); }
+}
+.user-cam {
+  position: absolute;
+  right: 24px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 104px;
+  height: 140px;
   border-radius: 10px;
   overflow: hidden;
-  background: #1b1f2a;
+  background: #2a2a33;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 8px 24px rgba(70, 60, 120, 0.18);
+  z-index: 2;
 }
-.ai-tile {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #1f2a44, #2c3e66);
-}
-.ai-sim { display: flex; flex-direction: column; align-items: center; gap: 10px; }
-.ai-avatar {
-  width: 54px;
-  height: 54px;
-  border-radius: 50%;
-  background: #409eff;
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 24px;
-  box-shadow: 0 0 0 0 rgba(64, 158, 255, 0.6);
-}
-.ai-avatar.speaking { animation: ai-pulse 1.2s ease-out infinite; }
-@keyframes ai-pulse {
-  0% { box-shadow: 0 0 0 0 rgba(64, 158, 255, 0.6); }
-  70% { box-shadow: 0 0 0 14px rgba(64, 158, 255, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(64, 158, 255, 0); }
-}
-.ai-wave { display: flex; align-items: flex-end; gap: 4px; height: 18px; }
-.ai-wave span {
-  width: 4px;
-  height: 6px;
-  border-radius: 2px;
-  background: #7fb6ff;
-  opacity: 0.45;
-}
-.ai-wave.active span { animation: ai-wave 0.8s ease-in-out infinite; opacity: 1; }
-@keyframes ai-wave {
-  0%, 100% { height: 6px; }
-  50% { height: 18px; }
-}
-.camera-video {
+.cam-video {
   width: 100%;
   height: 100%;
   object-fit: cover;
   transform: scaleX(-1);
 }
-.camera-off {
+.cam-off {
   height: 100%;
+  padding: 0 8px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  color: #8b93a3;
+  gap: 6px;
+  color: #9aa0b4;
+  text-align: center;
+  font-size: 10px;
 }
-.camera-off-icon { font-size: 30px; }
-.camera-hint { font-size: 12px; text-align: center; padding: 0 12px; }
-.camera-toggle { position: absolute; top: 8px; right: 8px; z-index: 2; }
-.tile-footer {
+.cam-off .el-icon { font-size: 22px; }
+.cam-label {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  left: 6px;
+  bottom: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.45);
+}
+.call-timer {
+  position: absolute;
+  left: 50%;
+  bottom: 76px;
+  transform: translateX(-50%);
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: #8a8fa3;
+  letter-spacing: 1px;
+  background: rgba(246, 244, 255, 0.72);
+}
+.call-controls {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  font-size: 12px;
-  color: #fff;
-  background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+  gap: 20px;
 }
-.tile-name { font-weight: 600; }
-.tile-status { margin-left: auto; display: flex; align-items: center; gap: 4px; color: #c9d1e0; }
-.status-dot {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
+.ctrl-btn {
+  width: 46px;
+  height: 46px;
+  border: 0;
+  padding: 0;
   border-radius: 50%;
-  background: #909399;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  color: #4a4f63;
+  font-size: 20px;
+  box-shadow: 0 6px 16px rgba(70, 60, 120, 0.14);
+  transition: transform 0.16s ease, background 0.16s ease, color 0.16s ease;
 }
-.tile-status.live .status-dot { background: #67c23a; box-shadow: 0 0 6px #67c23a; }
+.ctrl-btn:hover { transform: translateY(-2px); }
+.ctrl-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.ctrl-btn.ctrl-muted { background: #f0f0f5; color: #909399; }
+.ctrl-btn.ctrl-active { background: #e8f7ee; color: #2f9e5f; }
+.ctrl-btn.ctrl-hangup {
+  background: #ff4d4f;
+  color: #fff;
+  box-shadow: 0 8px 20px rgba(255, 77, 79, 0.38);
+}
+.ctrl-btn.ctrl-hangup .el-icon { transform: rotate(135deg); }
 .degraded-alert { margin: 8px 16px 0; border-radius: 8px; }
 
 @media (max-width: 640px) {
-  .video-tile { height: 110px; }
-  .ai-avatar { width: 40px; height: 40px; font-size: 18px; }
-  .camera-toggle { top: 4px; right: 4px; }
-  .camera-hint { font-size: 11px; }
+  .call-stage { height: 240px; }
+  .ai-orb { width: 150px; height: 150px; }
+  .user-cam { width: 86px; height: 116px; right: 14px; }
+  .call-timer { bottom: 68px; }
+  .call-controls { bottom: 12px; gap: 16px; }
+  .ctrl-btn { width: 42px; height: 42px; font-size: 18px; }
 }
 
 /* 对话区 */
@@ -771,20 +851,42 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 14px 20px;
-  border-bottom: 1px solid #f0f0f0;
+  background: #f6f4ff;
+  border-bottom: 0;
 }
 .chat-title { display: flex; align-items: center; gap: 12px; }
 .chat-title h3 { margin: 0; font-size: 16px; }
 .chat-sub { color: #909399; font-size: 12px; }
-.chat-avatar {
-  width: 40px; height: 40px;
+.ai-badge {
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
-  background: #409eff;
-  color: #fff;
-  font-size: 20px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  background: linear-gradient(135deg, #8a7cf5, #6ee7d8);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+.call-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  color: #52a35f;
+  background: rgba(103, 194, 58, 0.12);
+  font-size: 11px;
+}
+.live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #67c23a;
+  box-shadow: 0 0 6px rgba(103, 194, 58, 0.7);
 }
 .chat-body {
   flex: 1;
@@ -799,13 +901,13 @@ export default {
 }
 .msg-row.user { flex-direction: row-reverse; }
 .msg-avatar {
-  width: 32px; height: 32px;
+  width: 28px; height: 28px;
   border-radius: 50%;
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  font-size: 14px;
 }
 .msg-avatar.ai { background: #409eff; color: #fff; }
 .msg-avatar.user { background: #67c23a; color: #fff; }
