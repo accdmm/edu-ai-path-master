@@ -29,6 +29,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 /**
  * AI 面试官实现（BOSS 直聘式多轮对话面试）
@@ -65,6 +66,18 @@ public class AiInterviewServiceImpl implements AiInterviewService {
     /** AI 面试计费：每场面试扣积分，无免费额度 */
     private static final int AI_INTERVIEW_COST = 10;
 
+    /** 首题 AI 生成超时（秒）：超时降级真题库/模板，避免面试开始卡死 */
+    private static final long FIRST_QUESTION_TIMEOUT_SECONDS = 45;
+
+    /** 逐轮追问 AI 超时（秒） */
+    private static final long TURN_TIMEOUT_SECONDS = 60;
+
+    /** 收尾点评 AI 超时（秒） */
+    private static final long FINAL_COMMENT_TIMEOUT_SECONDS = 45;
+
+    /** 终局报告 AI 超时（秒） */
+    private static final long REPORT_TIMEOUT_SECONDS = 120;
+
     @Override
     public Result<Map<String, Object>> start(Long userId, AiInterviewStartVo vo) {
         try {
@@ -99,17 +112,46 @@ public class AiInterviewServiceImpl implements AiInterviewService {
             // 生成会话ID：时间戳 + 随机
             Long id = System.currentTimeMillis() * 1000 + (long) (Math.random() * 1000);
 
-            // 开场白 + 第一题：不调 LLM，秒开（真题库随机抽题，查不到用兜底模板）
+            // 0. 积分预检查：不足直接返回，避免无积分仍调用 LLM
+            UserCredit credit = userCreditMapper.selectOne(
+                    new LambdaQueryWrapper<UserCredit>().eq(UserCredit::getUserId, userId));
+            int balanceBefore = credit == null || credit.getActiveCredits() == null ? 0 : credit.getActiveCredits();
+            if (balanceBefore < AI_INTERVIEW_COST) {
+                return Result.error(4002, "积分不足，开始一场 AI 面试需 " + AI_INTERVIEW_COST
+                        + " 积分，可通过购买邀请码获取积分");
+            }
+
+            // 开场白
             StringBuilder opening = new StringBuilder("你好，我是你的 AI 面试官。");
             if (!s.diagnosisText.isBlank()) {
                 opening.append("我看过你的答题记录，会重点考察你的薄弱环节。");
             }
             opening.append("放轻松，我们像真实面试一样开始吧。");
-            String question = pickRealQuestion(s.direction, s.difficulty, s);
-            if (question == null) question = buildFallbackQuestion(s);
+
+            // 第一题：优先 AI 按技术方向/难度实时生成；超时或失败降级真题库，再兜底模板
+            String question = null;
+            String questionSource = "AI";
+            boolean degraded = false;
+            try {
+                question = cleanQuestion(callLlmWithTimeout(
+                        buildOpeningQuestionPrompt(direction, difficulty), FIRST_QUESTION_TIMEOUT_SECONDS));
+            } catch (Exception llmEx) {
+                log.warn("AI 生成首题失败/超时，降级真题库：{}", llmEx.getMessage());
+            }
+            if (question == null || question.isBlank()) {
+                question = pickRealQuestion(direction, difficulty, s);
+                questionSource = question == null ? "TEMPLATE" : "BANK";
+                degraded = true;
+                if (question == null) {
+                    question = buildFallbackQuestion(s);
+                }
+            }
+            s.degraded = degraded;
 
             s.messages.add(msg("ai", opening + "\n\n" + question));
-            s.askedQuestions.add(question);
+            if (!s.askedQuestions.contains(question)) {
+                s.askedQuestions.add(question);
+            }
 
             // 计费：每场面试扣 AI_INTERVIEW_COST 积分，无免费额度；条件扣费防并发超扣
             int updated = userCreditMapper.update(null, new UpdateWrapper<UserCredit>()
@@ -144,6 +186,8 @@ public class AiInterviewServiceImpl implements AiInterviewService {
             data.put("maxRounds", maxRounds);
             data.put("ended", false);
             data.put("messages", s.messages);
+            data.put("questionSource", questionSource);
+            data.put("degraded", degraded);
             return Result.success(data);
         } catch (Exception e) {
             log.error("开始 AI 面试失败", e);
@@ -173,11 +217,12 @@ public class AiInterviewServiceImpl implements AiInterviewService {
             if (s.round > s.maxRounds) {
                 String finalComment = "";
                 try {
-                    String raw = callLlm(buildFinalCommentPrompt(s));
+                    String raw = callLlmWithTimeout(buildFinalCommentPrompt(s), FINAL_COMMENT_TIMEOUT_SECONDS);
                     JSONObject json = parseJson(raw);
                     finalComment = json == null ? "" : json.getString("comment");
                 } catch (Exception llmEx) {
-                    log.warn("最后一轮点评降级（LLM 不可用）：{}", llmEx.getMessage());
+                    log.warn("最后一轮点评降级（LLM 不可用/超时）：{}", llmEx.getMessage());
+                    s.degraded = true;
                 }
                 if (finalComment == null || finalComment.isBlank()) {
                     finalComment = "好的，本场面试的提问环节到这里就结束了。";
@@ -186,30 +231,46 @@ public class AiInterviewServiceImpl implements AiInterviewService {
                 return startReportAndReturnPending(s, interviewId, finalComment);
             }
 
-            // LLM 调用失败时降级：固定点评 + 真题库换题，保证流程不中断
+            // LLM 调用失败/超时降级：固定点评 + AI/真题库换题，保证流程不中断
             String comment;
             String question;
             boolean ended = false;
+            boolean degraded = false;
             try {
-                String raw = callLlm(buildTurnPrompt(s));
+                String raw = callLlmWithTimeout(buildTurnPrompt(s), TURN_TIMEOUT_SECONDS);
                 JSONObject json = parseJson(raw);
                 comment = json == null ? "" : json.getString("comment");
-                question = json == null ? null : json.getString("question");
+                question = json == null ? null : cleanQuestion(json.getString("question"));
                 ended = json != null && Boolean.TRUE.equals(json.getBoolean("ended"));
             } catch (Exception llmEx) {
-                log.warn("AI 面试追问降级（LLM 不可用）：{}", llmEx.getMessage());
+                log.warn("AI 面试追问降级（LLM 不可用/超时）：{}", llmEx.getMessage());
                 comment = "收到你的回答。我们换个问题：";
-                question = pickRealQuestion(s.direction, s.difficulty, s);
-                if (question == null) question = buildFallbackQuestion(s);
+                question = null;
+                degraded = true;
             }
             if (comment == null) comment = "";
-            if (question == null || question.isBlank()) question = buildFallbackQuestion(s);
+            if (question == null || question.isBlank()) {
+                question = pickRealQuestion(s.direction, effectiveDifficulty(s), s);
+                if (question == null) {
+                    question = buildFallbackQuestion(s);
+                }
+                degraded = true;
+            }
+            if (!s.askedQuestions.contains(question)) {
+                s.askedQuestions.add(question);
+            }
+            if (degraded) {
+                s.degraded = true;
+            }
 
             String reply = comment.isBlank() ? question : comment + "\n\n" + question;
             s.messages.add(msg("ai", reply));
 
             // AI 自主判断面试结束：转异步报告
             if (ended) {
+                if (degraded) {
+                    s.degraded = true;
+                }
                 return startReportAndReturnPending(s, interviewId, comment);
             }
 
@@ -222,6 +283,7 @@ public class AiInterviewServiceImpl implements AiInterviewService {
             data.put("round", s.round);
             data.put("maxRounds", s.maxRounds);
             data.put("messages", s.messages);
+            data.put("degraded", degraded);
             return Result.success(data);
         } catch (Exception e) {
             log.error("AI 面试答题失败", e);
@@ -280,10 +342,11 @@ public class AiInterviewServiceImpl implements AiInterviewService {
             try {
                 JSONObject json = null;
                 try {
-                    String raw = callLlm(buildFinishPrompt(s));
+                    String raw = callLlmWithTimeout(buildFinishPrompt(s), REPORT_TIMEOUT_SECONDS);
                     json = parseJson(raw);
                 } catch (Exception llmEx) {
-                    log.warn("AI 面试报告生成降级（LLM 不可用）：{}", llmEx.getMessage());
+                    log.warn("AI 面试报告生成降级（LLM 不可用/超时）：{}", llmEx.getMessage());
+                    s.degraded = true;
                 }
                 s.report = buildReportData(s, json);
                 s.reportStatus = "DONE";
@@ -311,12 +374,14 @@ public class AiInterviewServiceImpl implements AiInterviewService {
         data.put("round", s.round);
         data.put("maxRounds", s.maxRounds);
         data.put("messages", s.messages);
+        data.put("degraded", s.degraded);
         return data;
     }
 
     private Map<String, Object> doneData(AiInterviewSession s) {
         Map<String, Object> data = s.report == null ? new HashMap<>() : new HashMap<>(s.report);
         data.put("reportStatus", "DONE");
+        data.put("degraded", s.degraded);
         return data;
     }
 
@@ -324,6 +389,7 @@ public class AiInterviewServiceImpl implements AiInterviewService {
     private Map<String, Object> buildReportData(AiInterviewSession s, JSONObject json) {
         Map<String, Object> data = new HashMap<>();
         data.put("ended", true);
+        data.put("degraded", s.degraded);
         data.put("round", s.round);
         data.put("maxRounds", s.maxRounds);
         data.put("messages", s.messages);
@@ -377,20 +443,111 @@ public class AiInterviewServiceImpl implements AiInterviewService {
 
     // ---------- 内部工具 ----------
 
+    /**
+     * 带超时的 LLM 调用：避免网络/大模型长时间卡住请求，超时抛出异常由调用方降级
+     */
+    private String callLlmWithTimeout(String prompt, long timeoutSeconds) throws Exception {
+        CompletableFuture<String> future = CompletableFuture.supplyAsync(() -> {
+            try {
+                return callLlm(prompt);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+        try {
+            return future.get(timeoutSeconds, TimeUnit.SECONDS);
+        } catch (java.util.concurrent.TimeoutException te) {
+            future.cancel(true);
+            throw new RuntimeException("AI 请求超时（>" + timeoutSeconds + "s）");
+        }
+    }
+
+    /**
+     * 清洗 LLM 生成的题目：去首行多余说明、引号、问号缺失补全，仅保留题目本身
+     */
+    private String cleanQuestion(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String text = raw.trim();
+        // 去掉 markdown 代码块 / “题目：”等多余标头（仅当首行明确是标头时才丢弃）
+        int nl = text.indexOf('\n');
+        if (nl > 0) {
+            String first = text.substring(0, nl).trim();
+            if (first.startsWith("==") || first.startsWith("```")
+                    || first.startsWith("题目") || first.startsWith("问题")) {
+                text = text.substring(nl).trim();
+            }
+        }
+        text = text.replace("```", "").trim();
+        while (text.startsWith("\"") && text.endsWith("\"") && text.length() >= 2) {
+            text = text.substring(1, text.length() - 1).trim();
+        }
+        if (!text.endsWith("?") && !text.endsWith("？")) {
+            text = text + "？";
+        }
+        return text.trim();
+    }
+
+    /**
+     * 难度归一化：未知难度回落到 medium（便于降级抽题）
+     */
+    private String effectiveDifficulty(AiInterviewSession s) {
+        String d = s.difficulty;
+        return ("easy".equals(d) || "medium".equals(d) || "hard".equals(d)) ? d : "medium";
+    }
+
+    /**
+     * 开场第一题：由 AI 按用户选择的技术方向 + 难度动态生成，
+     * 保证题目专业并对标该方向真实面试，难度梯度与所选难度一致
+     */
+    private String buildOpeningQuestionPrompt(String direction, String difficulty) {
+        StringBuilder p = new StringBuilder();
+        p.append("你是一名资深技术面试官，请为一次 ").append(directionLabel(direction)).append(" 方向、难度为 ")
+                .append(difficultyText(difficulty)).append(" 的技术面试出第一道面试题。\n\n");
+        p.append("【要求】\n");
+        p.append("1. 题目必须属于 ").append(directionLabel(direction)).append(" 技术范围，贴合该方向真实岗位面试的考点范围；\n");
+        p.append("2. 难度要与「").append(difficultyText(difficulty)).append("」匹配：简单=基础概念与常识；中等=原理理解+场景应用；困难=深挖原理+权衡取舍+如何排查；\n");
+        p.append("3. 题目作为一场面试的“开胃菜”题，应相对容易上手、适合开场，但必须体现该方向的专业性；\n");
+        p.append("4. 只输出题目本身（一句话或两行，60字内），不要任何解释、标题、编号或多余文字。\n");
+        return p.toString();
+    }
+
+    private String difficultyText(String difficulty) {
+        if ("easy".equals(difficulty)) {
+            return "简单";
+        }
+        if ("hard".equals(difficulty)) {
+            return "困难";
+        }
+        return "中等";
+    }
+
     private String buildTurnPrompt(AiInterviewSession s) {
         StringBuilder p = new StringBuilder();
         p.append("你是一名资深技术面试官，正在多轮面试候选人。请像真实面试一样：先简短点评上一回答（肯定优点/指出不足，80字内），然后根据回答决定是【追问本题】还是【换下一题】，继续提问。\n\n");
-        p.append("【面试方向】").append(directionLabel(s.direction)).append("　【难度】").append(s.difficulty).append("\n");
+        p.append("【面试方向】").append(directionLabel(s.direction))
+                .append("　【用户选择难度】").append(difficultyText(s.difficulty))
+                .append("　【本轮建议难度】").append(difficultyText(effectiveDifficulty(s))).append("\n");
+        p.append("【难度梯度要求】早期轮次可略低于用户选择难度、以热身为主；中后期必须达到或接近用户选择难度，体现递进。\n");
         if (!s.diagnosisText.isBlank()) {
             p.append("【候选人薄弱知识点诊断】").append(s.diagnosisText).append("\n");
             p.append("可针对薄弱知识点追问或换题。\n");
+        }
+        if (!s.askedQuestions.isEmpty()) {
+            p.append("【已经问过的题目（禁止重复）】\n");
+            for (String asked : s.askedQuestions) {
+                p.append("- ").append(asked).append("\n");
+            }
         }
         p.append("【面试历史】\n");
         for (Map<String, String> m : s.messages) {
             p.append(m.get("role").equals("ai") ? "面试官：" : "候选人：").append(m.get("content")).append("\n");
         }
-        p.append("\n这是第 ").append(s.round).append(" 轮。输出 JSON：\n");
+        p.append("\n这是第 ").append(s.round).append(" 轮，本轮建议难度：")
+                .append(difficultyText(effectiveDifficulty(s))).append("。输出 JSON：\n");
         p.append("{\"comment\":\"对候选人上一回答的点评(80字内)\",\"question\":\"下一道问题：可以是追问上一题或新题(70字内)\",\"ended\":false}\n");
+        p.append("出题要求：1) 题目必须属于").append(directionLabel(s.direction)).append("方向；2) 难度符合本轮建议难度；3) 不得与已问题目重复；4) 若追问上一题，可豁免重复约束。\n");
         p.append("若你认为面试已足够（至少 ").append(s.maxRounds).append(" 轮）或候选人明显答不上来，可将 ended 设为 true。\n");
         p.append("只输出 JSON，禁止其他文字。");
         return p.toString();
@@ -441,7 +598,9 @@ public class AiInterviewServiceImpl implements AiInterviewService {
     }
 
     private String buildFallbackQuestion(AiInterviewSession s) {
-        return "请谈谈你对 " + directionLabel(s.direction) + " 方向核心知识点的理解，以及你平时是如何学习和实践的？";
+        String difficulty = difficultyText(effectiveDifficulty(s));
+        return "请结合你的项目经历，谈谈一个 " + directionLabel(s.direction) + " 方向、" + difficulty
+                + "难度的核心知识点，以及你在实际开发中是如何应用和排查相关问题的？";
     }
 
     /**
@@ -473,7 +632,6 @@ public class AiInterviewServiceImpl implements AiInterviewService {
                 if (fresh.isEmpty()) fresh = list;
             }
             String picked = fresh.get((int) (Math.random() * fresh.size())).getQuestionContent();
-            if (s != null) s.askedQuestions.add(picked);
             return picked;
         } catch (Exception e) {
             log.warn("真题库抽题失败，使用兜底题目：{}", e.getMessage());

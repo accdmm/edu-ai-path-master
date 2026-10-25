@@ -26,6 +26,8 @@ public class AiInterviewSession {
     public List<Map<String, String>> messages = new ArrayList<>();
     /** 面试报告状态：NONE / GENERATING / DONE / FAILED */
     public String reportStatus = "NONE";
+    /** 是否发生过降级（LLM 超时/失败，使用真题库或模板兜底） */
+    public boolean degraded = false;
     /** 已生成的面试报告（含 qaReview 每题参考答案） */
     public Map<String, Object> report;
 }
