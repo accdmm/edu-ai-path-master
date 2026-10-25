@@ -234,6 +234,14 @@ pinecone:
 - **修复**：`AiInterview.vue` 增加快照持久化——进入 `finished`/`waiting` 态时把 `{userId, interviewId, stage, config, round, maxRounds, result}` 写入 `sessionStorage['ai_interview_snapshot']`；`onMounted` 时 `restoreSnapshot()` 原地恢复（finished 直接渲染结果页含大笑视频；waiting 恢复等待态并续上报告轮询）；`resetAll`/`handleStart` 清除快照。快照带 userId 校验，同标签页换账号不会串结果。轮询逻辑抽为 `pollReportOnce()`，`startPolling` 改为立即执行一次 + 5s 间隔，恢复等待态不必干等一轮。
 - **注意**：mid-interview（chatting 态）刷新仍会回到配置页（面试在后端继续，但前端不恢复对话），属于已知边界，未在本次处理。
 
+### 5.10 结果页奶龙大笑视频无法播放修复（2026-10-25）
+
+- **问题**：面试结果页的捧腹大笑视频（`frontend/public/pets/naifrog/laugh.mp4`）在浏览器里不显示（空白）。
+- **根因**：该文件是 **HEVC (hvc1 / H.265)** 编码（豆包导出的 15.4s 视频，5.5MB）。Chrome 不支持 HEVC；Edge 需安装微软商店「HEVC 视频扩展」才能解码——用户浏览器解码失败 → video 元素空白。（同期首页奶龙 flag.mp4 是 H.264，所以能动，一度误导排查方向。）
+- **修复**：用 ffmpeg.wasm（npm `@ffmpeg/core`，Node 里需垫 `self/document/XHR/fetch` shim + 劫持 `WebAssembly.instantiateStreaming` 读本地 wasm；本机无 ffmpeg、GitHub 下载被代理挡、npm 源直连可用）将 laugh.mp4 转码为 **H.264 480x656（保持原比例）、crf 26、veryfast、yuv420p、+faststart、去音轨**，5.5MB → **357KB**，原路径覆盖（前端零改动）。
+- **验证**：转码产物 avc1 确认；Edge 无头从项目路径实测 `PLAY OK 480x656`，逐帧截图确认奶龙捧腹大笑画面正常（白底 + 原 CSS 的 `mix-blend-mode: multiply` 恰好融进结果页浅色背景）。
+- **教训**：外部导入的视频素材务必先查编码（`grep avc1/hvc1` 或 `ffprobe`），豆包/即梦等工具默认常出 HEVC；网页用视频一律 H.264 + yuv420p + faststart。
+
 ## 6. 还需做（待办/阻塞项）
 
 ### 阻塞项（等待用户提供）
