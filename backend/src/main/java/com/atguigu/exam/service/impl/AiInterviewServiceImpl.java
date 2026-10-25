@@ -236,12 +236,17 @@ public class AiInterviewServiceImpl implements AiInterviewService {
             String question;
             boolean ended = false;
             boolean degraded = false;
+            Integer answerScore = null;
             try {
                 String raw = callLlmWithTimeout(buildTurnPrompt(s), TURN_TIMEOUT_SECONDS);
                 JSONObject json = parseJson(raw);
                 comment = json == null ? "" : json.getString("comment");
                 question = json == null ? null : cleanQuestion(json.getString("question"));
                 ended = json != null && Boolean.TRUE.equals(json.getBoolean("ended"));
+                answerScore = json == null ? null : parseAnswerScore(json.get("answerScore"));
+                if (answerScore != null) {
+                    answerScore = Math.max(0, Math.min(100, answerScore));
+                }
             } catch (Exception llmEx) {
                 log.warn("AI 面试追问降级（LLM 不可用/超时）：{}", llmEx.getMessage());
                 comment = "收到你的回答。我们换个问题：";
@@ -278,6 +283,7 @@ public class AiInterviewServiceImpl implements AiInterviewService {
 
             Map<String, Object> data = new HashMap<>();
             data.put("comment", comment);
+            data.put("answerScore", answerScore);
             data.put("question", question);
             data.put("ended", false);
             data.put("round", s.round);
@@ -550,7 +556,8 @@ public class AiInterviewServiceImpl implements AiInterviewService {
         }
         p.append("\n这是第 ").append(s.round).append(" 轮，本轮建议难度：")
                 .append(difficultyText(effectiveDifficulty(s))).append("。输出 JSON：\n");
-        p.append("{\"comment\":\"对候选人上一回答的点评(80字内)\",\"question\":\"下一道问题：可以是追问上一题或新题(70字内)\",\"ended\":false}\n");
+        p.append("{\"comment\":\"对候选人上一回答的点评(80字内)\",\"answerScore\":0到100整数,\"question\":\"下一道问题：可以是追问上一题或新题(70字内)\",\"ended\":false}\n");
+        p.append("answerScore 为对候选人上一回答的客观评分：80-100 优秀，60-79 基本合格，40-59 一般，0-39 较差或明显答不上来。\n");
         p.append("出题要求：1) 题目必须属于").append(directionLabel(s.direction)).append("方向；2) 难度符合本轮建议难度；3) 不得与已问题目重复；4) 若追问上一题，可豁免重复约束。\n");
         p.append("若你认为面试已足够（至少 ").append(s.maxRounds).append(" 轮）或候选人明显答不上来，可将 ended 设为 true。\n");
         p.append("只输出 JSON，禁止其他文字。");
@@ -669,6 +676,22 @@ public class AiInterviewServiceImpl implements AiInterviewService {
             return JSON.parseObject(content.substring(start, end + 1));
         } catch (Exception e) {
             log.warn("AI 面试 JSON 解析失败: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /** 稳健解析回答评分，兼容 "85"、"85分" 等写法；无法解析时返回 null */
+    private Integer parseAnswerScore(Object value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            if (value instanceof Number number) {
+                return number.intValue();
+            }
+            String digits = String.valueOf(value).replaceAll("[^0-9]", "");
+            return digits.isEmpty() ? null : Integer.parseInt(digits);
+        } catch (Exception e) {
             return null;
         }
     }

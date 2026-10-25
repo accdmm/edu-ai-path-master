@@ -110,7 +110,7 @@
           <el-skeleton :rows="6" animated />
           <div class="ai-analysis-hint">AI 正在讲解，约需 10~30 秒...</div>
         </div>
-        <div v-else-if="aiAnalysisResult" class="ai-analysis-content">{{ aiAnalysisResult }}</div>
+        <div v-else-if="aiAnalysisResult" class="ai-analysis-content">{{ fmtAi(aiAnalysisResult) }}</div>
         <el-empty v-else description="点击右上角「AI 解析本题」，让 AI 讲透这道题的考察点与底层原理" />
       </el-card>
 
@@ -239,6 +239,7 @@ import {
   toggleFavorite,
   aiAnalysisQuestion
 } from '@/api/interviewQuestion'
+import { normalizeAiText as fmtAi } from '@/utils/aiText'
 
 export default {
   name: 'InterviewQuestionDetail',
@@ -473,6 +474,7 @@ export default {
       relatedQuestions,
       aiAnalysisLoading,
       aiAnalysisResult,
+      fmtAi,
       aiAnalysisTagType,
       aiAnalysisTagText,
       handleAiAnalysis,
@@ -569,6 +571,7 @@ export default {
   background: #f8f9fa;
   border-radius: 6px;
   white-space: pre-wrap;
+  word-break: break-word;
   line-height: 1.8;
   color: #303133;
   font-size: 15px;

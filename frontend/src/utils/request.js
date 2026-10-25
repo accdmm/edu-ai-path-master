@@ -70,13 +70,18 @@ request.interceptors.response.use(
     const res = response.data
 
     if (res.code !== 200) {
-      ElMessage.error(res.message || '请求失败')
+      // 积分不足由业务页面统一弹出「去充值」引导，避免再叠加一条红色错误提示
+      if (res.code !== 4002) {
+        ElMessage.error(res.message || '请求失败')
+      }
       if (res.code === 401) {
         const userStore = useUserStore()
         userStore.logout()
         redirectToLogin()
       }
-      return Promise.reject(new Error(res.message || '请求失败'))
+      const err = new Error(res.message || '请求失败')
+      err.businessCode = res.code
+      return Promise.reject(err)
     }
 
     return res

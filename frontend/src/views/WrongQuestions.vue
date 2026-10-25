@@ -203,7 +203,7 @@
                     <el-icon><Notebook /></el-icon>
                     <span>题目解析</span>
                   </div>
-                  <div class="analysis-content">{{ item.analysis }}</div>
+                  <div class="analysis-content">{{ fmtAi(item.analysis) }}</div>
                 </div>
               </div>
 
@@ -214,7 +214,7 @@
               </div>
               <div v-else-if="aiState(item.id).result" class="ai-analysis-row">
                 <span class="ai-analysis-label">AI 解析：</span>
-                <span class="ai-analysis-text">{{ aiState(item.id).result }}</span>
+                <span class="ai-analysis-text">{{ fmtAi(aiState(item.id).result) }}</span>
               </div>
 
               <!-- 掌握进度 -->
@@ -294,6 +294,7 @@ import {
   aiAnalyzeWrongQuestion,
   generateConsolidationPaper
 } from '@/api/wrongQuestion'
+import { normalizeAiText as fmtAi } from '@/utils/aiText'
 
 const router = useRouter()
 
@@ -1115,6 +1116,8 @@ onMounted(() => {
 .analysis-content {
   color: #666;
   line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* AI 解析结果 */
@@ -1137,7 +1140,7 @@ onMounted(() => {
   font-size: 14px;
   color: #606266;
   white-space: pre-wrap;
-  word-break: break-all;
+  word-break: break-word;
 }
 
 /* 掌握进度 */

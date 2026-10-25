@@ -66,7 +66,7 @@
           </div>
           <div v-if="q.analysis" class="q-analysis">
             <span class="answer-label">题目解析：</span>
-            <span class="analysis-text">{{ q.analysis }}</span>
+            <span class="analysis-text">{{ fmtAi(q.analysis) }}</span>
           </div>
           <div class="q-ai">
             <el-button
@@ -89,7 +89,7 @@
           </div>
           <div v-else-if="aiState(q.id).result" class="q-analysis">
             <span class="answer-label">AI 解析：</span>
-            <span class="analysis-text analysis-ai">{{ aiState(q.id).result }}</span>
+            <span class="analysis-text analysis-ai">{{ fmtAi(aiState(q.id).result) }}</span>
           </div>
         </div>
       </div>
@@ -103,6 +103,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getPaperById, aiAnalyzePaperQuestion } from '../api/paper.js'
 import { ArrowLeft, Document, CollectionTag, TrophyBase, Timer, CircleCheckFilled, MagicStick } from '@element-plus/icons-vue'
+import { normalizeAiText as fmtAi } from '@/utils/aiText'
 
 const route = useRoute()
 const router = useRouter()
@@ -422,5 +423,7 @@ onMounted(() => {
 
 .q-analysis .analysis-text {
   color: #606266;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 </style>
