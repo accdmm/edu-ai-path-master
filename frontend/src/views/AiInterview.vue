@@ -1,5 +1,15 @@
 <template>
   <div class="ai-interview">
+    <!-- 网络异常提示：不阻塞页面，恢复后自动消失 -->
+    <el-alert
+      v-if="!isOnline"
+      title="网络已断开，请检查网络连接"
+      description="当前面试进度已保留，网络恢复后可继续作答"
+      type="error"
+      :closable="false"
+      show-icon
+      class="offline-banner"
+    />
     <!-- 配置页 -->
     <div v-if="stage === 'config'" class="interview-config">
       <div class="config-header">
@@ -9,6 +19,7 @@
           <el-tag type="warning" effect="dark" size="small">每场消耗 10 积分</el-tag>
           <el-tag type="info" size="small">当前积分：{{ credits }}</el-tag>
         </div>
+        <p class="video-tip">面试页支持开启摄像头做视频模拟预览（仅本地展示，不会上传）</p>
       </div>
       <el-card class="config-card">
         <el-form :model="config" :rules="rules" ref="configRef" label-width="110px">
@@ -30,8 +41,13 @@
             </el-radio-group>
           </el-form-item>
           <el-form-item label="面试轮数" prop="maxRounds">
-            <el-input-number v-model="config.maxRounds" :min="3" :max="12" />
-            <span class="form-tip">轮（AI 可自主结束）</span>
+            <el-radio-group v-model="config.maxRounds">
+              <el-radio-button :value="3">3 轮</el-radio-button>
+              <el-radio-button :value="4">4 轮</el-radio-button>
+              <el-radio-button :value="6">6 轮</el-radio-button>
+              <el-radio-button :value="8">8 轮</el-radio-button>
+            </el-radio-group>
+            <span class="form-tip">AI 可自主结束</span>
           </el-form-item>
           <el-form-item label="个性化">
             <el-switch v-model="config.personalized" active-text="开" inactive-text="关" />
@@ -52,11 +68,67 @@
           <el-icon class="chat-avatar"><Microphone /></el-icon>
           <div>
             <h3>AI 面试官</h3>
-            <span class="chat-sub">第 {{ round }} / {{ maxRounds }} 轮 · {{ directionLabel }} · {{ difficultyLabel }}</span>
+            <span class="chat-sub">第 {{ round }} / {{ maxRounds }} 轮 · {{ directionLabel }} · {{ difficultyLabel }} · 用时 {{ elapsedText }}</span>
           </div>
         </div>
         <el-button size="small" type="danger" plain :loading="finishing" @click="handleFinish">结束面试</el-button>
       </div>
+
+      <!-- 视频模拟区：AI 面试官为模拟画面；用户可自主开启/关闭摄像头（仅本地预览，不上传） -->
+      <div class="video-stage">
+        <div class="video-tile ai-tile">
+          <div class="ai-sim">
+            <div class="ai-avatar" :class="{ speaking: aiLoading }">
+              <el-icon><Microphone /></el-icon>
+            </div>
+            <div class="ai-wave" :class="{ active: aiLoading }">
+              <span v-for="n in 5" :key="n" :style="{ animationDelay: (n * 0.12) + 's' }"></span>
+            </div>
+          </div>
+          <div class="tile-footer">
+            <span class="tile-name">AI 面试官</span>
+            <span class="tile-status">{{ aiLoading ? '正在提问…' : '在线（模拟）' }}</span>
+          </div>
+        </div>
+
+        <div class="video-tile user-tile">
+          <video
+            v-show="cameraOn"
+            ref="videoRef"
+            autoplay
+            muted
+            playsinline
+            class="camera-video"
+          ></video>
+          <div v-if="!cameraOn" class="camera-off">
+            <el-icon class="camera-off-icon"><VideoCameraFilled /></el-icon>
+            <span class="camera-hint">{{ cameraHint }}</span>
+          </div>
+          <el-button
+            class="camera-toggle"
+            size="small"
+            :type="cameraOn ? 'danger' : 'primary'"
+            plain
+            @click="toggleCamera"
+          >{{ cameraOn ? '关闭视频' : '开启视频' }}</el-button>
+          <div class="tile-footer">
+            <span class="tile-name">我</span>
+            <span class="tile-status" :class="{ live: cameraOn }">
+              <i class="status-dot"></i>{{ cameraOn ? '摄像头已开启' : '摄像头未开启' }}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 降级提示：AI 超时/失败时使用备用题目或点评 -->
+      <el-alert
+        v-if="degradedHint"
+        :title="degradedHint"
+        type="warning"
+        :closable="false"
+        show-icon
+        class="degraded-alert"
+      />
 
       <div class="chat-body" ref="chatBodyRef">
         <div v-for="(m, i) in messages" :key="i" class="msg-row" :class="m.role">
@@ -94,6 +166,14 @@
         <h3>面试已结束，正在生成面试报告…</h3>
         <p>AI 正在整理你的表现评分、每题参考答案与改进建议</p>
         <p class="waiting-tip">通常需要 30-60 秒，完成后自动展示，请勿关闭页面</p>
+        <el-alert
+          v-if="pollHint"
+          :title="pollHint"
+          type="warning"
+          :closable="false"
+          show-icon
+          class="poll-alert"
+        />
         <el-button v-if="reportFailed" type="warning" @click="handleRetryReport">重新生成报告</el-button>
       </el-card>
     </div>
@@ -102,6 +182,15 @@
     <div v-else-if="stage === 'finished'" class="interview-result">
       <el-card class="result-card">
         <template #header><span>面试结果</span></template>
+        <el-alert
+          v-if="result.degraded"
+          title="本次报告使用了降级评分"
+          description="部分 AI 请求超时或不可用，分数与建议仅供参考，建议重新面试以获取完整评价"
+          type="warning"
+          :closable="false"
+          show-icon
+          class="degraded-report"
+        />
         <div class="score-big">
           <span class="score-num">{{ result.score }}</span>
           <span class="score-unit">/ 100</span>
@@ -154,10 +243,10 @@
   </template>
 
 <script>
-import { ref, reactive, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { ref, reactive, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Microphone, User, Loading } from '@element-plus/icons-vue'
+import { Microphone, User, Loading, VideoCameraFilled } from '@element-plus/icons-vue'
 import request from '@/utils/request'
 import { getActiveCredit } from '@/api/user'
 import { useUserStore } from '@/stores/user'
@@ -176,7 +265,107 @@ export default {
     const configRef = ref()
     const credits = ref(0)
 
+    // ---- 视频模拟（仅本地预览，不上传） ----
+    const videoRef = ref()
+    const cameraOn = ref(false)
+    const cameraHint = ref('开启视频，模拟真实面试场景')
+    let cameraStream = null
+
+    // ---- 异常降级与网络状态 ----
+    const isOnline = ref(navigator.onLine)
+    const degradedHint = ref('')
+    const pollHint = ref('')
+    const elapsedSeconds = ref(0)
+    let elapsedTimer = null
+    let pollFailures = 0
+    let degradedTimer = null
+
     const AI_INTERVIEW_COST = 10
+
+    const elapsedText = computed(() => {
+      const m = String(Math.floor(elapsedSeconds.value / 60)).padStart(2, '0')
+      const s = String(elapsedSeconds.value % 60).padStart(2, '0')
+      return `${m}:${s}`
+    })
+
+    const startTimer = () => {
+      stopTimer()
+      elapsedSeconds.value = 0
+      elapsedTimer = setInterval(() => { elapsedSeconds.value++ }, 1000)
+    }
+    const stopTimer = () => {
+      if (elapsedTimer) { clearInterval(elapsedTimer); elapsedTimer = null }
+    }
+
+    const showDegraded = (flag, scene) => {
+      if (!flag) return
+      degradedHint.value = scene === 'start'
+        ? '首题由备用题库生成（AI 响应超时），不影响继续面试'
+        : '本轮 AI 响应超时或不可用，已使用备用点评/题目，不影响继续面试'
+      if (degradedTimer) clearTimeout(degradedTimer)
+      degradedTimer = setTimeout(() => { degradedHint.value = '' }, 10000)
+    }
+
+    const handleOnline = () => { isOnline.value = true; ElMessage.success('网络已恢复') }
+    const handleOffline = () => { isOnline.value = false }
+
+    const startCamera = async () => {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        cameraHint.value = '当前浏览器不支持摄像头，已使用模拟画面'
+        ElMessage.warning('当前环境不支持摄像头，可继续文字面试')
+        return
+      }
+      cameraHint.value = '正在请求摄像头权限…'
+      let timedOut = false
+      try {
+        const streamPromise = navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+        // 权限弹窗长时间无响应时超时降级，避免界面卡在“正在请求权限”
+        cameraStream = await Promise.race([
+          streamPromise,
+          new Promise((resolve, reject) => setTimeout(() => {
+            timedOut = true
+            reject(new Error('CAMERA_TIMEOUT'))
+          }, 8000))
+        ])
+        // 超时后迟到的视频流立即释放，避免占用摄像头
+        streamPromise.then(stream => {
+          if (timedOut) stream.getTracks().forEach(track => track.stop())
+        }).catch(() => {})
+        cameraOn.value = true
+        cameraHint.value = ''
+        await nextTick()
+        if (videoRef.value) {
+          videoRef.value.srcObject = cameraStream
+          videoRef.value.play().catch(() => {})
+        }
+        ElMessage.success('视频已开启（本地模拟预览）')
+      } catch (e) {
+        cameraOn.value = false
+        if (e && e.message === 'CAMERA_TIMEOUT') {
+          cameraHint.value = '摄像头响应超时，已切换为模拟画面，可继续文字面试'
+        } else if (e && e.name === 'NotAllowedError') {
+          cameraHint.value = '未获得摄像头权限，可继续文字面试'
+        } else {
+          cameraHint.value = '摄像头不可用，已切换为模拟画面'
+        }
+        ElMessage.warning(cameraHint.value)
+      }
+    }
+
+    const stopCamera = () => {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop())
+        cameraStream = null
+      }
+      if (videoRef.value) videoRef.value.srcObject = null
+      cameraOn.value = false
+      cameraHint.value = '开启视频，模拟真实面试场景'
+    }
+
+    const toggleCamera = () => {
+      if (cameraOn.value) stopCamera()
+      else startCamera()
+    }
 
     const loadCredits = async () => {
       const userId = userStore.userInfo?.userId
@@ -188,7 +377,11 @@ export default {
         credits.value = 0
       }
     }
-    onMounted(loadCredits)
+    onMounted(() => {
+      loadCredits()
+      window.addEventListener('online', handleOnline)
+      window.addEventListener('offline', handleOffline)
+    })
 
     const config = reactive({
       direction: 'java',
@@ -209,8 +402,12 @@ export default {
     const reportFailed = ref(false)
     let pollTimer = null
 
-    const directionLabel = { java: 'Java', frontend: '前端', bigdata: '大数据', algorithm: '算法', devops: '运维', testing: '测试' }[config.direction] || config.direction
-    const difficultyLabel = { easy: '简单', medium: '中等', hard: '困难' }[config.difficulty] || config.difficulty
+    const directionLabel = computed(() =>
+      ({ java: 'Java', frontend: '前端', bigdata: '大数据', algorithm: '算法', devops: '运维', testing: '测试' }[config.direction] || config.direction)
+    )
+    const difficultyLabel = computed(() =>
+      ({ easy: '简单', medium: '中等', hard: '困难' }[config.difficulty] || config.difficulty)
+    )
 
     const scrollBottom = () => {
       nextTick(() => {
@@ -242,6 +439,9 @@ export default {
           maxRounds.value = res.data.maxRounds
           stage.value = 'chatting'
           credits.value = Math.max(0, credits.value - AI_INTERVIEW_COST)
+          degradedHint.value = ''
+          showDegraded(res.data.degraded, 'start')
+          startTimer()
           scrollBottom()
         } else if (res.code === 4002) {
           // 积分不足：引导购买邀请码获取积分
@@ -257,7 +457,11 @@ export default {
           ElMessage.error(res.message || '开始失败')
         }
       } catch (e) {
-        ElMessage.error('开始失败，请重试')
+        if (e && (e.code === 'ECONNABORTED' || String(e.message || '').includes('timeout'))) {
+          ElMessage.warning('AI 出题超时，请检查网络后重试（若已扣积分，重新进入面试即可）')
+        } else {
+          ElMessage.error('网络异常，开始面试失败，请检查网络后重试')
+        }
       } finally {
         starting.value = false
       }
@@ -280,22 +484,34 @@ export default {
           // 报告生成中：切到等待页，轮询
           if (res.data.reportPending || res.data.reportStatus === 'GENERATING') {
             stage.value = 'waiting'
+            stopTimer()
+            stopCamera()
             startPolling()
           } else if (res.data.ended && res.data.reportStatus === 'DONE') {
             result.value = res.data
             stage.value = 'finished'
+            stopTimer()
+            stopCamera()
           } else if (!res.data.ended) {
             round.value = res.data.round
             maxRounds.value = res.data.maxRounds
+            showDegraded(res.data.degraded, 'turn')
           }
           scrollBottom()
         } else {
           ElMessage.error(res.message || '提交失败')
           messages.value.pop()
+          answerText.value = text
         }
       } catch (e) {
-        ElMessage.error('网络异常，请重试')
+        // 网络异常/超时：回滚本轮回答，保留输入框内容，避免用户重复输入
         messages.value.pop()
+        answerText.value = text
+        if (e && (e.code === 'ECONNABORTED' || String(e.message || '').includes('timeout'))) {
+          ElMessage.warning('AI 响应超时，回答已保留，请点击发送重试')
+        } else {
+          ElMessage.error('网络异常，回答已保留，请检查网络后重试')
+        }
       } finally {
         aiLoading.value = false
       }
@@ -303,15 +519,21 @@ export default {
 
     const startPolling = () => {
       stopPolling()
+      pollFailures = 0
+      pollHint.value = ''
       pollTimer = setInterval(async () => {
         try {
           const res = await request.get(`/api/ai-interview/report/${interviewId}`, { timeout: 15000 })
           if (res.code === 200) {
+            pollFailures = 0
+            pollHint.value = ''
             const d = res.data
             if (d.reportStatus === 'DONE') {
               stopPolling()
               result.value = d
               stage.value = 'finished'
+              stopTimer()
+              stopCamera()
               scrollBottom()
             } else if (d.reportStatus === 'FAILED') {
               stopPolling()
@@ -319,7 +541,11 @@ export default {
             }
           }
         } catch (e) {
-          // 轮询失败忽略，继续
+          // 轮询失败：保持重试，连续失败时给出友好提示，不打断页面
+          pollFailures++
+          if (pollFailures >= 5) {
+            pollHint.value = '网络不稳定，报告获取较慢，正在自动重试…'
+          }
         }
       }, 5000)
     }
@@ -335,16 +561,24 @@ export default {
         if (res.code === 200) {
           if (res.data.reportPending || res.data.reportStatus === 'GENERATING') {
             stage.value = 'waiting'
+            stopTimer()
+            stopCamera()
             startPolling()
           } else if (res.data.reportStatus === 'DONE') {
             result.value = res.data
             stage.value = 'finished'
+            stopTimer()
+            stopCamera()
           }
         } else {
           ElMessage.error(res.message || '结束失败')
         }
       } catch (e) {
-        ElMessage.error('网络异常，请重试')
+        if (e && (e.code === 'ECONNABORTED' || String(e.message || '').includes('timeout'))) {
+          ElMessage.warning('结束请求超时，请稍后重试；当前面试进度已保留')
+        } else {
+          ElMessage.error('网络异常，结束失败，请检查网络后重试')
+        }
       } finally {
         finishing.value = false
       }
@@ -358,25 +592,39 @@ export default {
 
     const resetAll = () => {
       stopPolling()
+      stopTimer()
+      stopCamera()
+      if (degradedTimer) { clearTimeout(degradedTimer); degradedTimer = null }
       reportFailed.value = false
+      pollHint.value = ''
+      pollFailures = 0
+      degradedHint.value = ''
       stage.value = 'config'
       messages.value = []
       result.value = {}
       interviewId = null
       answerText.value = ''
+      elapsedSeconds.value = 0
     }
 
     const goLearningPath = () => router.push('/learning-path')
 
     onBeforeUnmount(() => {
       stopPolling()
+      stopTimer()
+      stopCamera()
+      if (degradedTimer) { clearTimeout(degradedTimer); degradedTimer = null }
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
     })
 
     return {
       stage, config, rules, configRef, starting, aiLoading, finishing,
       messages, round, maxRounds, answerText, result, chatBodyRef, credits,
-      reportFailed,
+      reportFailed, pollHint,
       directionLabel, difficultyLabel,
+      isOnline, degradedHint, elapsedText,
+      videoRef, cameraOn, cameraHint, toggleCamera,
       handleStart, handleSend, handleFinish, handleRetryReport, resetAll, goLearningPath
     }
   }
@@ -400,6 +648,113 @@ export default {
 .free-badge { margin-top: 10px; display: flex; gap: 8px; justify-content: center; }
 .config-card { border-radius: 10px; }
 .form-tip { margin-left: 10px; color: #909399; font-size: 12px; }
+.video-tip { margin: 8px 0 0; color: #909399; font-size: 12px; }
+.offline-banner { margin-bottom: 12px; border-radius: 8px; }
+.poll-alert { margin: 12px 40px 0; border-radius: 8px; }
+.degraded-report { margin-bottom: 12px; border-radius: 8px; }
+
+/* 视频模拟区 */
+.video-stage {
+  display: flex;
+  gap: 10px;
+  padding: 10px 16px 4px;
+  background: #10131a;
+}
+.video-tile {
+  position: relative;
+  flex: 1;
+  height: 150px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #1b1f2a;
+}
+.ai-tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1f2a44, #2c3e66);
+}
+.ai-sim { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.ai-avatar {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: #409eff;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  box-shadow: 0 0 0 0 rgba(64, 158, 255, 0.6);
+}
+.ai-avatar.speaking { animation: ai-pulse 1.2s ease-out infinite; }
+@keyframes ai-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(64, 158, 255, 0.6); }
+  70% { box-shadow: 0 0 0 14px rgba(64, 158, 255, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(64, 158, 255, 0); }
+}
+.ai-wave { display: flex; align-items: flex-end; gap: 4px; height: 18px; }
+.ai-wave span {
+  width: 4px;
+  height: 6px;
+  border-radius: 2px;
+  background: #7fb6ff;
+  opacity: 0.45;
+}
+.ai-wave.active span { animation: ai-wave 0.8s ease-in-out infinite; opacity: 1; }
+@keyframes ai-wave {
+  0%, 100% { height: 6px; }
+  50% { height: 18px; }
+}
+.camera-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+.camera-off {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #8b93a3;
+}
+.camera-off-icon { font-size: 30px; }
+.camera-hint { font-size: 12px; text-align: center; padding: 0 12px; }
+.camera-toggle { position: absolute; top: 8px; right: 8px; z-index: 2; }
+.tile-footer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: #fff;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+}
+.tile-name { font-weight: 600; }
+.tile-status { margin-left: auto; display: flex; align-items: center; gap: 4px; color: #c9d1e0; }
+.status-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #909399;
+}
+.tile-status.live .status-dot { background: #67c23a; box-shadow: 0 0 6px #67c23a; }
+.degraded-alert { margin: 8px 16px 0; border-radius: 8px; }
+
+@media (max-width: 640px) {
+  .video-tile { height: 110px; }
+  .ai-avatar { width: 40px; height: 40px; font-size: 18px; }
+  .camera-toggle { top: 4px; right: 4px; }
+  .camera-hint { font-size: 11px; }
+}
 
 /* 对话区 */
 .interview-chat {
