@@ -483,7 +483,11 @@ public class AiInterviewServiceImpl implements AiInterviewService {
         while (text.startsWith("\"") && text.endsWith("\"") && text.length() >= 2) {
             text = text.substring(1, text.length() - 1).trim();
         }
-        if (!text.endsWith("?") && !text.endsWith("？")) {
+        // 统一结尾：句号/感叹号等改为问号，已有问号则保留
+        String last = text.isEmpty() ? "" : text.substring(text.length() - 1);
+        if ("。！，；,.;!".contains(last)) {
+            text = text.substring(0, text.length() - 1).trim() + "？";
+        } else if (!"?".equals(last) && !"？".equals(last)) {
             text = text + "？";
         }
         return text.trim();
