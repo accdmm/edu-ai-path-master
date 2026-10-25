@@ -228,6 +228,12 @@ pinecone:
 - **素材**：`C:\Users\34147\Downloads\grill me技能GitHub链接查询.mp4`（6s 循环，旗上文字在「蛋家军→奶家军→奶家人」间切换）→ 复制为 `frontend/public/pets/naifrog/flag.mp4`（530KB）。
 - **验证**：`npx vite build --emptyOutDir false` 通过（⚠️ 本机沙箱会拦截 Vite 清空 dist 的批量 rmSync，直接 `npm run build` 会在打包成功后、写盘前报 safe-delete 错导致 dist 不刷新——需加 `--emptyOutDir false` 一次性绕过；用户自己终端不受影响）；产物确认 `dist/pets/naifrog/flag.mp4` 存在、Home chunk 含 `mascot-badge`。视觉预览 `docs/ai-mascot-entry-preview.html`：Edge 无头截图桌面（84px）与移动端样式路径（64px，用 `min-width` 强制媒体查询在桌面视口验证）均正常；小窗口（390 宽）无头不渲染 fixed 元素系 Edge headless 怪癖，已用纯红圈最小复现确认非组件问题。
 
+### 5.9 面试结果页「刷新即丢」修复（2026-10-25）
+
+- **问题现象**：面试结果页停留一会后「自己变回 /ai-interview 初始页」，结果和捧腹大笑奶龙一起消失。**根因不是自动跳转**（组件内无任何定时导航逻辑，URL 始终是 /ai-interview）——而是结果只存在组件内存（`result.value = res.data`），页面一旦被整页重载就重置 `stage='config'`。重载诱因：① Vite 对 `frontend/public/` 下任何文件变更触发**全量 reload**（开发中往 public 复制素材会无感踢回页面，本次即 suspected trigger）；② 浏览器回收后台标签页后重载；③ 用户手动刷新。
+- **修复**：`AiInterview.vue` 增加快照持久化——进入 `finished`/`waiting` 态时把 `{userId, interviewId, stage, config, round, maxRounds, result}` 写入 `sessionStorage['ai_interview_snapshot']`；`onMounted` 时 `restoreSnapshot()` 原地恢复（finished 直接渲染结果页含大笑视频；waiting 恢复等待态并续上报告轮询）；`resetAll`/`handleStart` 清除快照。快照带 userId 校验，同标签页换账号不会串结果。轮询逻辑抽为 `pollReportOnce()`，`startPolling` 改为立即执行一次 + 5s 间隔，恢复等待态不必干等一轮。
+- **注意**：mid-interview（chatting 态）刷新仍会回到配置页（面试在后端继续，但前端不恢复对话），属于已知边界，未在本次处理。
+
 ## 6. 还需做（待办/阻塞项）
 
 ### 阻塞项（等待用户提供）

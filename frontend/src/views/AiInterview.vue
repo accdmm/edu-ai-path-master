@@ -563,6 +563,7 @@ export default {
       }
     }
     onMounted(() => {
+      restoreSnapshot() // 先恢复快照：重载后直接回到结果/等待态，而非初始配置页
       loadCredits()
       window.addEventListener('online', handleOnline)
       window.addEventListener('offline', handleOffline)
@@ -696,6 +697,7 @@ export default {
     }
 
     const handleStart = async () => {
+      clearSnapshot() // 开新面试即作废上一场的快照，避免恢复出旧结果
       try {
         await configRef.value.validate()
       } catch (e) { return }
@@ -763,12 +765,14 @@ export default {
             stage.value = 'waiting'
             stopTimer()
             stopCamera()
+            persistSnapshot()
             startPolling()
           } else if (res.data.ended && res.data.reportStatus === 'DONE') {
             result.value = res.data
             stage.value = 'finished'
             stopTimer()
             stopCamera()
+            persistSnapshot()
           } else if (!res.data.ended) {
             round.value = res.data.round
             maxRounds.value = res.data.maxRounds
@@ -802,41 +806,95 @@ export default {
       }
     }
 
+    const pollReportOnce = async () => {
+      try {
+        const res = await request.get(`/api/ai-interview/report/${interviewId}`, { timeout: 15000 })
+        if (res.code === 200) {
+          pollFailures = 0
+          pollHint.value = ''
+          const d = res.data
+          if (d.reportStatus === 'DONE') {
+            stopPolling()
+            result.value = d
+            stage.value = 'finished'
+            persistSnapshot()
+            stopTimer()
+            stopCamera()
+            scrollBottom()
+          } else if (d.reportStatus === 'FAILED') {
+            stopPolling()
+            reportFailed.value = true
+          }
+        }
+      } catch (e) {
+        // 轮询失败：保持重试，连续失败时给出友好提示，不打断页面
+        pollFailures++
+        if (pollFailures >= 5) {
+          pollHint.value = '网络不稳定，报告获取较慢，正在自动重试…'
+        }
+      }
+    }
+
     const startPolling = () => {
       stopPolling()
       pollFailures = 0
       pollHint.value = ''
-      pollTimer = setInterval(async () => {
-        try {
-          const res = await request.get(`/api/ai-interview/report/${interviewId}`, { timeout: 15000 })
-          if (res.code === 200) {
-            pollFailures = 0
-            pollHint.value = ''
-            const d = res.data
-            if (d.reportStatus === 'DONE') {
-              stopPolling()
-              result.value = d
-              stage.value = 'finished'
-              stopTimer()
-              stopCamera()
-              scrollBottom()
-            } else if (d.reportStatus === 'FAILED') {
-              stopPolling()
-              reportFailed.value = true
-            }
-          }
-        } catch (e) {
-          // 轮询失败：保持重试，连续失败时给出友好提示，不打断页面
-          pollFailures++
-          if (pollFailures >= 5) {
-            pollHint.value = '网络不稳定，报告获取较慢，正在自动重试…'
-          }
-        }
-      }, 5000)
+      pollReportOnce() // 立即查一次，恢复等待态时不必干等一个轮询周期
+      pollTimer = setInterval(pollReportOnce, 5000)
     }
 
     const stopPolling = () => {
       if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
+    }
+
+    // ---- 结果/等待态快照持久化 ----
+    // 结果此前只存在组件内存里，页面一旦被整页重载（Vite 对 public/ 目录变更触发的全量 reload、
+    // 浏览器回收后台标签页后的重载、用户按 F5 等）就会打回 stage='config'，
+    // 表现为「回到 /ai-interview 初始页、面试结果和捧腹大笑奶龙消失」。
+    // 这里把 finished/waiting 态写入 sessionStorage，重载后原地恢复。
+    const SNAPSHOT_KEY = 'ai_interview_snapshot'
+    const persistSnapshot = () => {
+      if (stage.value !== 'finished' && stage.value !== 'waiting') return
+      try {
+        sessionStorage.setItem(SNAPSHOT_KEY, JSON.stringify({
+          userId: userStore.userInfo?.userId || null,
+          interviewId,
+          stage: stage.value,
+          config: { direction: config.direction, difficulty: config.difficulty, maxRounds: config.maxRounds },
+          round: round.value,
+          maxRounds: maxRounds.value,
+          result: stage.value === 'finished' ? result.value : null
+        }))
+      } catch (e) { /* 隐私模式等存储不可用时静默降级 */ }
+    }
+    const clearSnapshot = () => {
+      try { sessionStorage.removeItem(SNAPSHOT_KEY) } catch (e) { /* ignore */ }
+    }
+    const restoreSnapshot = () => {
+      try {
+        const raw = sessionStorage.getItem(SNAPSHOT_KEY)
+        if (!raw) return
+        const saved = JSON.parse(raw)
+        if (!saved || !saved.stage) return
+        // 只恢复同一登录用户的快照，避免同标签页换账号后看到上一位用户的结果
+        if (saved.userId && saved.userId !== (userStore.userInfo?.userId || null)) return
+        interviewId = saved.interviewId ?? null
+        if (saved.config) {
+          config.direction = saved.config.direction || config.direction
+          config.difficulty = saved.config.difficulty || config.difficulty
+          config.maxRounds = saved.config.maxRounds || config.maxRounds
+        }
+        round.value = saved.round || 0
+        maxRounds.value = saved.maxRounds || (saved.config && saved.config.maxRounds) || 6
+        if (saved.stage === 'finished' && saved.result) {
+          result.value = saved.result
+          stage.value = 'finished'
+        } else if (saved.stage === 'waiting') {
+          // 报告仍在后台生成：恢复等待态并继续轮询（后端幂等）
+          stage.value = 'waiting'
+          startPolling()
+        }
+      } catch (e) { /* 快照损坏时忽略，保持初始态 */ }
     }
 
     const handleFinish = async () => {
@@ -848,12 +906,14 @@ export default {
             stage.value = 'waiting'
             stopTimer()
             stopCamera()
+            persistSnapshot()
             startPolling()
           } else if (res.data.reportStatus === 'DONE') {
             result.value = res.data
             stage.value = 'finished'
             stopTimer()
             stopCamera()
+            persistSnapshot()
           }
         } else {
           ElMessage.error(res.message || '结束失败')
@@ -892,6 +952,7 @@ export default {
       stopPolling()
       stopTimer()
       stopCamera()
+      clearSnapshot()
       if (degradedTimer) { clearTimeout(degradedTimer); degradedTimer = null }
       reportFailed.value = false
       pollHint.value = ''
