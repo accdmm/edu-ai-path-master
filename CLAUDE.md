@@ -221,6 +221,13 @@ pinecone:
 - **实测**：匿名 `POST /api/exams/start`、`GET /api/exam-records/list|ranking`、`GET /api/learning-path/active` → 全 401；公开接口全 200；登录后 `exam-records/list`、`exams/records` → 200。浏览器路由实测 7 步全过（含 student 登录访问 `/admin/welcome` 被弹回 `/home`；非管理员不再显示「管理员后台」按钮）。
 - **已知残留（未处理，非本次引入）**：`Welcome.vue` 企业 logo 引用外链 `picsum.photos`（网络不通时控制台 ERR_ABORTED）；`Welcome.vue` 一条 ElIcon reactive 警告。
 
+### 5.8 首页 AI 入口小图标（2026-10-25）
+
+- **能力**：首页右下角新增悬浮圆形小图标（`components/AiMascotEntry.vue`，仅 `Home.vue` 挂载）：内嵌奶龙挥旗循环视频 `/pets/naifrog/flag.mp4`（用户提供的豆包 AI 生成素材，原生 1:1 正方形内容区，圆形 `object-fit:cover` 裁切后 mascot 与旗帜完整保留），右上角「AI」渐变角标 + el-tooltip「AI 面试官 · 奶龙陪你模拟面试」。未登录点击跳 `/login?redirect=/ai-interview`，已登录直接进 AI 面试官。
+- **实现细节**：外层 `.mascot-bob` 呼吸浮动、内层 `.mascot-fab` hover 缩放（分层避免 transform 互相覆盖）；`visibilitychange` 切后台暂停播放；`prefers-reduced-motion` 时不自动播放仅展示首帧；移动端 64px（桌面 84px）；z-index 1200（低于 el-overlay 2001，弹窗打开时图标被遮罩盖住）；`:autoplay="!reducedMotion"` 绑定，`muted/loop/playsinline` 静态属性（与 AiInterview.vue 的 laugh.mp4 同款用法）。
+- **素材**：`C:\Users\34147\Downloads\grill me技能GitHub链接查询.mp4`（6s 循环，旗上文字在「蛋家军→奶家军→奶家人」间切换）→ 复制为 `frontend/public/pets/naifrog/flag.mp4`（530KB）。
+- **验证**：`npx vite build --emptyOutDir false` 通过（⚠️ 本机沙箱会拦截 Vite 清空 dist 的批量 rmSync，直接 `npm run build` 会在打包成功后、写盘前报 safe-delete 错导致 dist 不刷新——需加 `--emptyOutDir false` 一次性绕过；用户自己终端不受影响）；产物确认 `dist/pets/naifrog/flag.mp4` 存在、Home chunk 含 `mascot-badge`。视觉预览 `docs/ai-mascot-entry-preview.html`：Edge 无头截图桌面（84px）与移动端样式路径（64px，用 `min-width` 强制媒体查询在桌面视口验证）均正常；小窗口（390 宽）无头不渲染 fixed 元素系 Edge headless 怪癖，已用纯红圈最小复现确认非组件问题。
+
 ## 6. 还需做（待办/阻塞项）
 
 ### 阻塞项（等待用户提供）

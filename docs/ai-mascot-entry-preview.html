@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>首页 AI 入口小图标 · 视觉预览</title>
+<style>
+  /* ===== 复刻首页环境（取自 Home.vue） ===== */
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  .fake-navbar {
+    height: 64px;
+    background: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+    display: flex;
+    align-items: center;
+    padding: 0 40px;
+    font-size: 20px;
+    font-weight: bold;
+    background-clip: text;
+  }
+  .fake-navbar span {
+    background: linear-gradient(45deg, #667eea, #764ba2);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .fake-cards {
+    max-width: 1200px;
+    margin: 40px auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 24px;
+    padding: 0 20px;
+  }
+  .fake-card {
+    background: #fff;
+    border-radius: 16px;
+    height: 140px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #999;
+    font-size: 14px;
+  }
+
+  /* ===== 以下与 src/components/AiMascotEntry.vue 保持一致 ===== */
+  .ai-mascot-entry {
+    position: fixed;
+    right: 28px;
+    bottom: 28px;
+    z-index: 1200;
+  }
+  .mascot-bob {
+    animation: mascot-bob 3.4s ease-in-out infinite;
+  }
+  .mascot-fab {
+    position: relative;
+    display: block;
+    width: 84px;
+    height: 84px;
+    padding: 0;
+    border: 3px solid #fff;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 8px 24px rgba(31, 41, 55, 0.22);
+    cursor: pointer;
+    overflow: hidden;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+  }
+  .mascot-fab:hover {
+    transform: translateY(-4px) scale(1.06);
+    box-shadow: 0 14px 32px rgba(31, 41, 55, 0.28);
+  }
+  .mascot-fab:active {
+    transform: scale(0.97);
+  }
+  .mascot-fab:focus-visible {
+    outline: 2px solid #409eff;
+    outline-offset: 3px;
+  }
+  .mascot-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    pointer-events: none;
+  }
+  .mascot-badge {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    min-width: 24px;
+    height: 20px;
+    padding: 0 5px;
+    border: 1.5px solid #fff;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #409eff, #667eea);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 17px;
+    text-align: center;
+    letter-spacing: 0.5px;
+    box-shadow: 0 2px 6px rgba(64, 158, 255, 0.45);
+  }
+  @keyframes mascot-bob {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+  }
+  @media (max-width: 640px) {
+    .ai-mascot-entry { right: 16px; bottom: 16px; }
+    .mascot-fab { width: 64px; height: 64px; border-width: 2px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .mascot-bob { animation: none; }
+    .mascot-fab { transition: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="fake-navbar"><span>智能学习平台</span></div>
+  <div class="fake-cards">
+    <div class="fake-card">快捷功能卡片（示意）</div>
+    <div class="fake-card">快捷功能卡片（示意）</div>
+    <div class="fake-card">快捷功能卡片（示意）</div>
+    <div class="fake-card">快捷功能卡片（示意）</div>
+  </div>
+
+  <!-- 与组件一致的标记；视频用相对路径指向 public 资源 -->
+  <div class="ai-mascot-entry">
+    <div class="mascot-bob">
+      <button type="button" class="mascot-fab" aria-label="进入 AI 面试官">
+        <video class="mascot-video" src="../frontend/public/pets/naifrog/flag.mp4" autoplay muted loop playsinline preload="auto" aria-hidden="true"></video>
+        <span class="mascot-badge" aria-hidden="true">AI</span>
+      </button>
+    </div>
+  </div>
+</body>
+</html>

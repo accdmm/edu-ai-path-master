@@ -211,6 +211,9 @@
       </div>
     </div>
 
+    <!-- 悬浮「AI 入口」小图标：奶龙挥旗动画，点击进入 AI 面试官 -->
+    <AiMascotEntry />
+
     <!-- 管理员登录对话框（样式与登录页「极简单列」同一套设计语言） -->
     <el-dialog
       v-model="adminLoginVisible"
@@ -281,6 +284,7 @@ import {
 import request from '../utils/request'
 import { useUserStore } from '@/stores/user'
 import { getActiveCredit } from '@/api/user'
+import AiMascotEntry from '@/components/AiMascotEntry.vue'
 
 const router = useRouter()
 const userStore = useUserStore()
